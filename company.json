@@ -1,0 +1,25 @@
+{
+  "brand": "NoirFrame",
+  "owner": "Marcin Porębski",
+  "email": "noirframe.contact@gmail.com",
+  "phone": "",
+  "website": "www.noirframe.art",
+  "street": "Peter Rossegger Str 29",
+  "postalCode": "40699",
+  "city": "Erkrath",
+  "country": "Deutschland",
+  "bank": {
+    "name": "ING-DiBa",
+    "accountHolder": "Marcin Porębski",
+    "iban": "DE79 5001 0517 5426 8340 08",
+    "bic": ""
+  },
+  "offer": {
+    "depositPercent": 25,
+    "validityDays": 14,
+    "emailSubject": "Ihr persönliches Angebot – NoirFrame",
+    "validityText": "Dieses Angebot ist {days} Tage gültig.",
+    "legalUnverbindlich": "Dieses Angebot ist unverbindlich bis zur schriftlichen Auftragsbestätigung.",
+    "legalUstg": "Gemäß § 19 UStG wird keine Umsatzsteuer berechnet."
+  }
+}

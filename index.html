@@ -1,0 +1,692 @@
+<!doctype html>
+
+<html lang="de">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+<meta name="theme-color" content="#544c3e">
+
+<meta name="mobile-web-app-capable" content="yes">
+
+<meta name="apple-mobile-web-app-capable" content="yes">
+
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+<meta name="apple-mobile-web-app-title" content="NF PAD">
+
+<link rel="manifest" href="manifest.json">
+
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+
+<link rel="apple-touch-icon" href="icon.svg">
+
+<title>NOIRFRAME PAD</title>
+
+<link
+
+rel="preconnect"
+
+href="https://fonts.googleapis.com"
+
+>
+
+<link
+
+rel="preconnect"
+
+href="https://fonts.gstatic.com"
+
+crossorigin
+
+>
+
+<link
+
+href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+
+rel="stylesheet"
+
+>
+
+<link rel="stylesheet" href="styles.css">
+
+<script>
+(function () {
+  try {
+    if (localStorage.getItem("nfTheme") === "dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+    }
+  } catch (error) {}
+})();
+</script>
+
+</head>
+
+<body>
+
+<header id="hero"></header>
+
+<main>
+
+<section id="quickActions"></section><!-- TODO CLEANUP NFOP 3.2 — pusta sekcja -->
+
+<section id="projects"></section>
+
+<section id="footer"></section>
+
+</main>
+
+<div id="clientModal" class="modal hidden">
+
+    <div class="modalContent">
+
+        <h2>Kundendaten</h2>
+
+        <input id="clientNameInput" placeholder="Nachname">
+        <input id="clientPhoneInput" placeholder="Telefon">
+        <input id="clientEmailInput" placeholder="E-Mail">
+        <input id="clientAddressInput" placeholder="Adresse">
+
+        <button id="saveClientBtn">
+            Speichern
+        </button>
+
+    </div>
+
+</div>
+
+
+<div id="dateModal" class="modal hidden">
+
+    <div class="modalContent operatorTerminModal">
+
+        <h2 id="dateModalTitle">📅 Verfügbarkeit prüfen</h2>
+
+        <p class="operatorTerminCalHint" id="dateModalHint">
+          Kundenwunsch — Tag im Kalender wählen. Belegte Tage sind nicht buchbar.
+        </p>
+
+        <p class="supervisorCalLegend" aria-hidden="true">
+          <span class="supervisorCalLegendItem supervisorCalLegendItem--auftrag">Auftrag / Reservierung</span>
+          <span class="supervisorCalLegendItem supervisorCalLegendItem--blocked">Supervisor-Sperre</span>
+        </p>
+
+        <div class="supervisorCalNav">
+          <button type="button" id="operatorTerminCalPrev" aria-label="Vorheriger Monat">‹</button>
+          <span id="operatorTerminCalMonthLabel"></span>
+          <button type="button" id="operatorTerminCalNext" aria-label="Nächster Monat">›</button>
+        </div>
+
+        <div class="supervisorCalWeekdays" aria-hidden="true">
+          <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
+        </div>
+
+        <div id="operatorTerminCalGrid" class="supervisorCalGrid operatorTerminCalGrid"></div>
+
+        <p id="dateSelectedLabel" class="dateSelectedLabel dateSelectedLabel--empty">
+          Bitte Tag im Kalender wählen.
+        </p>
+
+        <label>Uhrzeit (optional)</label>
+
+        <input
+            type="time"
+            id="timeInput"
+            step="60"
+        >
+
+        <p
+          id="dateModalError"
+          class="modalError hidden"
+          role="alert"
+        ></p>
+
+        <p
+          id="dateModalOk"
+          class="dateModalOk hidden"
+          role="status"
+        ></p>
+
+        <button id="saveDateBtn" type="button">
+            Speichern
+        </button>
+
+        <button id="removeDateBtn" type="button">
+            Termin entfernen
+        </button>
+
+        <button id="cancelDateBtn" type="button">
+            Abbrechen
+        </button>
+
+    </div>
+
+</div>
+
+<div id="supervisorCalendarModal" class="modal hidden">
+
+  <div class="modalContent supervisorCalendarModal">
+
+    <h2>Supervisor — Kalender</h2>
+
+    <p class="supervisorCalHint">
+      Private Tagessperren — Operator sieht keine Reservierung.
+      Auftrag hat Priorität.
+    </p>
+
+    <p class="supervisorCalLegend" aria-hidden="true">
+      <span class="supervisorCalLegendItem supervisorCalLegendItem--auftrag">Auftrag / Reservierung</span>
+      <span class="supervisorCalLegendItem supervisorCalLegendItem--blocked">Supervisor-Sperre</span>
+    </p>
+
+    <div class="supervisorCalNav">
+      <button type="button" id="supervisorCalPrev" aria-label="Vorheriger Monat">‹</button>
+      <span id="supervisorCalMonthLabel"></span>
+      <button type="button" id="supervisorCalNext" aria-label="Nächster Monat">›</button>
+    </div>
+
+    <div class="supervisorCalWeekdays" aria-hidden="true">
+      <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
+    </div>
+
+    <div id="supervisorCalGrid" class="supervisorCalGrid"></div>
+
+    <div id="supervisorCalDetail" class="supervisorCalDetail hidden">
+      <p id="supervisorCalDayStatus" class="supervisorCalDayStatus"></p>
+      <label for="supervisorCalReason">Grund (privat)</label>
+      <input
+        id="supervisorCalReason"
+        type="text"
+        maxlength="80"
+        placeholder="z.B. Arzt, Urlaub"
+        autocomplete="off"
+      >
+      <p
+        id="supervisorCalDetailError"
+        class="modalError hidden"
+        role="alert"
+      ></p>
+      <div class="supervisorCalActions">
+        <button type="button" id="supervisorCalBlockBtn">Tag sperren</button>
+        <button type="button" id="supervisorCalUnblockBtn">Sperre aufheben</button>
+      </div>
+    </div>
+
+    <button type="button" id="closeSupervisorCalBtn">Schließen</button>
+
+  </div>
+
+</div>
+
+<div id="offerPreviewModal" class="modal hidden">
+
+  <div class="modalContent offerPreviewModal">
+
+    <h2>Angebot — Vorschau</h2>
+
+    <div id="offerPreviewBody" class="offerPreviewBody"></div>
+
+    <div class="offerPreviewActions">
+
+      <button
+        type="button"
+        id="offerPreviewSendBtn"
+        class="offerPreviewSendBtn"
+      >
+        📨 Angebot senden
+      </button>
+
+      <p id="offerPreviewSendHint" class="offerPreviewSendHint">
+        Via Gmail — noirframe.contact@gmail.com
+      </p>
+
+      <button type="button" id="closeOfferPreviewBtn">
+        Schließen
+      </button>
+
+    </div>
+
+  </div>
+
+</div>
+
+<div id="offerMobileSendModal" class="modal hidden">
+
+  <div class="modalContent offerMobileSendModal">
+
+    <h2>📨 Angebot senden</h2>
+
+    <p id="offerMobileSendTo" class="offerMobileSendLine"></p>
+
+    <p id="offerMobileSendFrom" class="offerMobileSendLine"></p>
+
+    <p id="offerMobileSendStatus" class="offerMobileSendStatus">
+      Angebotstext wird kopiert…
+    </p>
+
+    <div class="offerMobileSendActions">
+
+      <button type="button" id="offerMobileSendCopyBtn">
+        📋 Text kopieren
+      </button>
+
+      <button type="button" id="offerMobileSendAppBtn">
+        📨 Gmail App
+      </button>
+
+      <button type="button" id="offerMobileSendWebBtn">
+        🌐 Gmail Web
+      </button>
+
+      <button type="button" id="offerMobileSendCloseBtn">
+        Schließen
+      </button>
+
+    </div>
+
+  </div>
+
+</div>
+
+<div id="eventAddressModal" class="modal hidden">
+
+  <div class="modalContent">
+
+    <h2>📍 Veranstaltungsadresse</h2>
+
+    <div class="eventAddressForm">
+
+      <div class="eventAddressRowSplit eventAddressRowSplit--city">
+
+        <div>
+          <label for="eventPostalCodeInput">PLZ</label>
+          <input
+            id="eventPostalCodeInput"
+            placeholder="PLZ"
+            inputmode="numeric"
+            autocomplete="postal-code"
+          >
+        </div>
+
+        <div>
+          <label for="eventCityInput">Ort</label>
+          <input
+            id="eventCityInput"
+            placeholder="Ort"
+            autocomplete="address-level2"
+          >
+        </div>
+
+      </div>
+
+      <div class="eventAddressRowSplit eventAddressRowSplit--street">
+
+        <div>
+          <label for="eventStreetInput">Straße</label>
+          <input
+            id="eventStreetInput"
+            placeholder="Straße"
+            autocomplete="street-address"
+          >
+        </div>
+
+        <div>
+          <label for="eventHouseNumberInput">Haus-Nr.</label>
+          <input
+            id="eventHouseNumberInput"
+            placeholder="Nr."
+          >
+        </div>
+
+      </div>
+
+    </div>
+
+    <button id="saveEventAddressBtn" type="button">
+
+      Speichern
+
+    </button>
+
+  </div>
+
+</div>
+
+<div id="notesModal" class="modal hidden">
+
+  <div class="modalContent notesCenter">
+
+    <header class="notesCenterHeader">
+      <h2>📝 Notizen</h2>
+    </header>
+
+    <div class="notesCenterLayout">
+
+      <section class="notesCenterMain">
+
+        <div
+          id="notesPreview"
+          class="notesPreview"
+          aria-live="polite"
+        ></div>
+
+        <textarea
+          id="notesInput"
+          class="notesInput--edit hidden"
+          placeholder="Notizen"
+          maxlength="1000"
+          rows="4"
+        ></textarea>
+
+        <div class="notesCenterMeta">
+          <span id="notesCharCount" class="notesCharCount">0 / 1000 Zeichen</span>
+          <span id="notesLastEdited" class="notesLastEdited hidden"></span>
+        </div>
+
+      </section>
+
+      <aside
+        class="notesCenterRail hidden"
+        aria-hidden="true"
+        hidden
+      >
+        <!-- TODO CLEANUP NFOP 3.2 — voice/attachments/transcription niezaimplementowane -->
+        <div class="notesCenterSlot" data-notes-feature="voice"></div>
+        <div class="notesCenterSlot" data-notes-feature="attachments"></div>
+        <div class="notesCenterSlot" data-notes-feature="transcription"></div>
+      </aside>
+
+    </div>
+
+    <footer class="notesCenterActions">
+
+      <button id="toggleNotesEditBtn" type="button">
+        ✏️ Bearbeiten
+      </button>
+
+      <button id="saveNotesBtn" type="button">
+      💾 Speichern
+    </button>
+
+    <button id="cancelNotesBtn" type="button">
+      ❌ Abbrechen
+      </button>
+
+    </footer>
+
+  </div>
+
+</div>
+
+<div id="serviceModal" class="modal hidden">
+
+  <div class="modalContent mooseModePanel">
+
+    <h2>🦌 ELCH-MODUS</h2>
+
+    <p class="mooseModeQuote">
+      Und was willst du hier wieder kaputt machen?
+    </p>
+
+    <div class="mooseModeActions">
+
+      <p id="mooseModeStatus" class="mooseModeStatus"></p>
+
+      <button id="serviceCleanupDraftsBtn" type="button">
+        🗑 Leere Aufträge entfernen
+      </button>
+
+      <p class="mooseModeSectionTitle">Daten — Backup v1</p>
+
+      <button id="serviceSaveAsBackupBtn" type="button">
+        💾 Save As…
+      </button>
+
+      <label
+        for="backupImportInput"
+        id="serviceOpenBackupLabel"
+        class="mooseModeFileBtn"
+      >
+        📂 Open From…
+      </label>
+
+      <input
+        id="backupImportInput"
+        type="file"
+        accept=".json,application/json"
+        class="nfBackupFileInput"
+      >
+
+      <p class="mooseModeSectionHint">
+        3× iPad: Save As (NFOP_Datum_Uhrzeit.json) → AirDrop oder iCloud Drive →
+        Open From auf dem anderen Gerät. Bei paralleler Arbeit: Merge wählen
+        (neuere Aufträge nach updatedAt gewinnen). Snapshot läuft
+        still im Gerätespeicher — Export nur über Save As.
+      </p>
+
+    </div>
+
+    <button id="serviceCloseBtn" type="button">
+      ❌ Schließen
+    </button>
+
+  </div>
+
+</div>
+
+<div id="catalogModal" class="modal hidden">
+
+  <div class="modalContent catalogScreen">
+
+    <h2>📦 NoirFrame Katalog</h2>
+
+    <input
+      id="catalogSearchInput"
+      type="text"
+      inputmode="search"
+      placeholder="Suche — Name, Kategorie, Tags…"
+      autocomplete="off"
+      autocorrect="off"
+      autocapitalize="off"
+      spellcheck="false"
+    >
+
+    <p
+      id="catalogSearchStatus"
+      class="catalogSearchStatus"
+      aria-live="polite"
+    ></p>
+
+    <div class="catalogLayout">
+
+      <div id="catalogList" class="catalogList"></div>
+
+      <aside
+        id="catalogDetailPanel"
+        class="catalogDetailPanel hidden"
+        aria-label="Produktdetails"
+      >
+
+        <h3 id="catalogDetailPanelTitle"></h3>
+
+        <div id="catalogDetailPanelBody"></div>
+
+        <div class="catalogOfferSection catalogOfferSection--panel">
+
+          <h4>Paket zum Projekt</h4>
+
+          <label for="catalogPanelOfferProjectSelect">Projekt</label>
+
+          <select id="catalogPanelOfferProjectSelect"></select>
+
+          <fieldset class="catalogOfferAddons">
+            <legend>Zusatzleistungen</legend>
+            <div id="catalogPanelOfferAddonsList"></div>
+          </fieldset>
+
+          <label for="catalogPanelOfferManualInput">Manuell ergänzen</label>
+
+          <input
+            id="catalogPanelOfferManualInput"
+            type="text"
+            placeholder="z.B. 2. Fotograf, Rabatt 10 %"
+            autocomplete="off"
+            autocorrect="off"
+          >
+
+          <fieldset class="catalogOfferTravel">
+            <legend>🚗 Anfahrt</legend>
+            <p class="catalogTravelInfo">Bis 30 km — inklusive</p>
+            <label for="catalogPanelOfferTravelKm">Strecke (km, einfach)</label>
+            <input
+              id="catalogPanelOfferTravelKm"
+              type="number"
+              min="0"
+              step="1"
+              inputmode="numeric"
+              placeholder="z.B. 45"
+              autocomplete="off"
+            >
+            <p
+              id="catalogPanelOfferTravelCalc"
+              class="catalogTravelCalc"
+              aria-live="polite"
+            >Bis 30 km — inklusive</p>
+          </fieldset>
+
+        </div>
+
+        <div class="catalogDetailActions">
+
+          <button id="catalogPanelCopyDescBtn" type="button">
+            📋 Beschreibung kopieren
+          </button>
+
+          <button
+            id="catalogPanelOfferBtn"
+            type="button"
+            class="catalogApplyBtn"
+          >
+            ✅ Zum Projekt übernehmen
+          </button>
+
+        </div>
+
+      </aside>
+
+    </div>
+
+    <button id="catalogCloseBtn" type="button">
+      ❌ Schließen
+    </button>
+
+  </div>
+
+</div>
+
+<div id="catalogProductModal" class="modal hidden">
+
+  <div class="modalContent">
+
+    <h2 id="catalogProductTitle"></h2>
+
+    <div id="catalogProductBody"></div>
+
+    <div class="catalogOfferSection">
+
+      <h4>Paket zum Projekt</h4>
+
+      <label for="catalogOfferProjectSelect">Projekt</label>
+
+      <select id="catalogOfferProjectSelect"></select>
+
+      <fieldset class="catalogOfferAddons">
+        <legend>Zusatzleistungen</legend>
+        <div id="catalogOfferAddonsList"></div>
+      </fieldset>
+
+      <label for="catalogOfferManualInput">Manuell ergänzen</label>
+
+      <input
+        id="catalogOfferManualInput"
+        type="text"
+        placeholder="z.B. 2. Fotograf, Rabatt 10 %"
+        autocomplete="off"
+        autocorrect="off"
+      >
+
+      <fieldset class="catalogOfferTravel">
+        <legend>🚗 Anfahrt</legend>
+        <p class="catalogTravelInfo">Bis 30 km — inklusive</p>
+        <label for="catalogOfferTravelKm">Strecke (km, einfach)</label>
+        <input
+          id="catalogOfferTravelKm"
+          type="number"
+          min="0"
+          step="1"
+          inputmode="numeric"
+          placeholder="z.B. 45"
+          autocomplete="off"
+        >
+        <p
+          id="catalogOfferTravelCalc"
+          class="catalogTravelCalc"
+          aria-live="polite"
+        >Bis 30 km — inklusive</p>
+      </fieldset>
+
+    </div>
+
+    <button id="catalogCopyDescBtn" type="button">
+      📋 Beschreibung kopieren
+    </button>
+
+    <button
+      id="catalogOfferBtn"
+      type="button"
+      class="catalogApplyBtn"
+    >
+      ✅ Zum Projekt übernehmen
+    </button>
+
+    <button id="catalogProductCloseBtn" type="button">
+      ❌ Schließen
+    </button>
+
+  </div>
+
+</div>
+
+<script src="config.js"></script>
+
+<script src="catalog-data.js"></script>
+
+<script src="storage.js"></script>
+
+<script src="ui.js"></script>
+
+<script src="modal.js"></script>
+
+<script src="travel.js"></script>
+
+<script src="cpe-engine.js"></script>
+
+<script src="cpe.js"></script>
+
+<script src="supervisor-calendar.js"></script>
+
+<script src="operator-termin-calendar.js"></script>
+
+<script src="backup.js"></script>
+
+<script src="app.js"></script>
+
+<script src="angebot.js"></script>
+
+</body>
+
+</html>

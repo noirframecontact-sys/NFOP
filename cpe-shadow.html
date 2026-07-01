@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CPE Shadow Mode — NFOPiPAD3.0</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, system-ui, sans-serif;
+      background: #0f1115;
+      color: #e8eaed;
+    }
+
+    body {
+      margin: 0;
+      padding: 24px;
+      max-width: 920px;
+    }
+
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+
+    .meta {
+      color: #9aa0a6;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+
+    button {
+      background: #1a73e8;
+      color: #fff;
+      border: 0;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    #summary {
+      margin: 20px 0;
+      padding: 16px;
+      border-radius: 12px;
+      background: #171a21;
+      border: 1px solid #2a2f3a;
+    }
+
+    .ok { color: #81c995; }
+    .fail { color: #f28b82; }
+
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    li {
+      padding: 10px 0;
+      border-bottom: 1px solid #222831;
+      line-height: 1.4;
+    }
+
+    code {
+      background: #222831;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Calendar Physics Engine — Shadow Mode</h1>
+
+  <p class="meta">
+    Silnik zasobowy CPE działa <strong>poza</strong> NFOPiPAD3.0.
+    Brak integracji z <code>app.js</code>. Brak zapisu decyzji.
+    Każdy wynik jest doradczy (<code>advisory: true</code>).
+  </p>
+
+  <button id="runBtn" type="button">Uruchom Shadow Tests</button>
+
+  <div id="summary">Kliknij przycisk, aby uruchomić 15 testów.</div>
+
+  <ul id="results"></ul>
+
+  <script src="config.js"></script>
+  <script src="cpe-engine.js"></script>
+  <script src="cpe.js"></script>
+  <script src="cpe-shadow-tests.js"></script>
+
+  <script>
+    (function () {
+      const runBtn = document.getElementById("runBtn");
+      const summary = document.getElementById("summary");
+      const list = document.getElementById("results");
+
+      runBtn.addEventListener("click", async function () {
+        list.innerHTML = "";
+        summary.textContent = "Uruchamianie…";
+
+        try {
+          await window.NF_cpe.init({ loadCatalog: false });
+
+          const report = window.CPE_SHADOW_TESTS.run();
+
+          summary.innerHTML = report.ok
+            ? `<span class="ok">PASS</span> — ${report.passed}/${report.total} testów`
+            : `<span class="fail">FAIL</span> — ${report.passed}/${report.total} passed, ${report.failed} failed`;
+
+          report.results.forEach(function (item) {
+            const li = document.createElement("li");
+
+            if (item.ok) {
+              li.innerHTML = `<span class="ok">✓</span> ${item.name}`;
+            } else {
+              li.innerHTML =
+                `<span class="fail">✗</span> ${item.name}<br>` +
+                `<small>${item.message || "error"}</small>`;
+            }
+
+            list.appendChild(li);
+          });
+        } catch (error) {
+          summary.innerHTML = `<span class="fail">ERROR</span> — ${error.message}`;
+        }
+      });
+    })();
+  </script>
+
+</body>
+</html>

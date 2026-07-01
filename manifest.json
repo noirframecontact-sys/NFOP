@@ -1,0 +1,19 @@
+{
+  "name": "NOIRFRAME PAD",
+  "short_name": "NF PAD",
+  "description": "NOIRFRAME Operator — iPAD9 3.0",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ddd4c4",
+  "theme_color": "#544c3e",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
