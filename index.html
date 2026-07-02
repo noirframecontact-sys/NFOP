@@ -86,7 +86,7 @@ rel="stylesheet"
 
         <h2>Kundendaten</h2>
 
-        <input id="clientNameInput" placeholder="Nachname">
+        <input id="clientNameInput" placeholder="Name / Firma">
         <input id="clientPhoneInput" placeholder="Telefon">
         <input id="clientEmailInput" placeholder="E-Mail">
         <input id="clientAddressInput" placeholder="Adresse">
@@ -539,8 +539,8 @@ rel="stylesheet"
           >
 
           <fieldset class="catalogOfferTravel">
-            <legend>🚗 Anfahrt</legend>
-            <p class="catalogTravelInfo">Bis 30 km — inklusive</p>
+            <legend>🚗 Kilometrówka / Anfahrt</legend>
+            <p class="catalogTravelInfo">Bis 30 km (einfach) — inklusive. Darüber: Hin &amp; Rück, volle Strecke.</p>
             <label for="catalogPanelOfferTravelKm">Strecke (km, einfach)</label>
             <input
               id="catalogPanelOfferTravelKm"
@@ -555,8 +555,14 @@ rel="stylesheet"
               id="catalogPanelOfferTravelCalc"
               class="catalogTravelCalc"
               aria-live="polite"
-            >Bis 30 km — inklusive</p>
+            >Bis 30 km (einfach) — inklusive</p>
           </fieldset>
+
+          <p
+            id="catalogPanelOfferTotal"
+            class="catalogOfferTotal"
+            aria-live="polite"
+          ></p>
 
         </div>
 
@@ -620,8 +626,8 @@ rel="stylesheet"
       >
 
       <fieldset class="catalogOfferTravel">
-        <legend>🚗 Anfahrt</legend>
-        <p class="catalogTravelInfo">Bis 30 km — inklusive</p>
+        <legend>🚗 Kilometrówka / Anfahrt</legend>
+        <p class="catalogTravelInfo">Bis 30 km (einfach) — inklusive. Darüber: Hin &amp; Rück, volle Strecke.</p>
         <label for="catalogOfferTravelKm">Strecke (km, einfach)</label>
         <input
           id="catalogOfferTravelKm"
@@ -636,8 +642,14 @@ rel="stylesheet"
           id="catalogOfferTravelCalc"
           class="catalogTravelCalc"
           aria-live="polite"
-        >Bis 30 km — inklusive</p>
+        >Bis 30 km (einfach) — inklusive</p>
       </fieldset>
+
+      <p
+        id="catalogOfferTotal"
+        class="catalogOfferTotal"
+        aria-live="polite"
+      ></p>
 
     </div>
 

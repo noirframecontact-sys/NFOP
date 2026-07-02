@@ -170,6 +170,177 @@ function splitClientName(client) {
 
 }
 
+function getClientGreeting(project) {
+
+  const name = String(project?.client || "").trim();
+
+  return name || "Guten Tag";
+
+}
+
+function getClientDisplayName(project) {
+
+  const name = String(project?.client || "").trim();
+
+  return name || "—";
+
+}
+
+function getVerwendungszweckLabel(project) {
+
+  const client = String(project?.client || "").trim();
+  const title = String(project?.title || "").trim();
+  const fallback =
+    title && title !== "Neues Projekt" ? title : "Projekt";
+
+  return "Anzahlung – " + (client || fallback);
+
+}
+
+const OFFER_SECTION_RULE = "──────────────────────────────";
+
+function formatOfferPlainField(label, value) {
+
+  const text = String(value || "—").trim() || "—";
+
+  return label.padEnd(16) + text;
+
+}
+
+function formatOfferPlainServiceLines(item) {
+
+  const parsed = item.parsed;
+  const price = formatAngebotEuro(item.total);
+
+  if (isTravelOfferBlock(item.block.content)) {
+
+    const lines = [
+      "",
+      "▸ Anfahrt / Kilometerpauschale · " + price
+    ];
+
+    parsed.rawLines.slice(1).forEach(line => {
+
+      if (line.startsWith("Kosten:")) {
+        return;
+      }
+
+      lines.push("  " + line);
+
+    });
+
+    return lines;
+
+  }
+
+  const product = item.product;
+  const lines = [
+    "",
+    "▸ " + parsed.productName + " · " + price
+  ];
+
+  if (product) {
+
+    lines.push("  Zeit: " + formatCatalogMinutes(product.duration));
+
+    if (product.description) {
+      lines.push("  " + product.description);
+    }
+
+    if (Array.isArray(product.includes) && product.includes.length) {
+      lines.push("  Leistungsumfang:");
+      product.includes.forEach(entry => {
+        lines.push("    - " + entry);
+      });
+    }
+
+  } else if (parsed.rawLines.find(line => line.startsWith("Zeit:"))) {
+    lines.push(
+      "  " + parsed.rawLines.find(line => line.startsWith("Zeit:"))
+    );
+  }
+
+  if (parsed.addons.length) {
+    lines.push("  Zusatzleistungen:");
+    parsed.addons.forEach(addon => {
+      lines.push("    - " + addon);
+    });
+  }
+
+  if (parsed.manualNote) {
+    lines.push("  Ergänzung: " + parsed.manualNote);
+  }
+
+  return lines;
+
+}
+
+function renderOfferServiceHtml(item) {
+
+  const product = item.product;
+  const parsed = item.parsed;
+  const isTravel = isTravelOfferBlock(item.block.content);
+  const serviceTitle = isTravel
+    ? "Anfahrt / Kilometerpauschale"
+    : parsed.productName;
+
+  const travelDetailsHtml = isTravel
+    ? parsed.rawLines.slice(1)
+      .filter(line => !line.startsWith("Kosten:"))
+      .map(line =>
+        `<p class="angebotTravelDetail">${escapeAngebotHtml(line)}</p>`
+      )
+      .join("")
+    : "";
+
+  const includesHtml = product && Array.isArray(product.includes)
+    ? `<ul class="angebotIncludes">${product.includes.map(entry =>
+        `<li>${escapeAngebotHtml(entry)}</li>`
+      ).join("")}</ul>`
+    : "";
+
+  const addonsHtml = parsed.addons.length
+    ? `<div class="angebotAddons"><strong>Zusatzleistungen</strong><ul>${parsed.addons.map(addon =>
+        `<li>${escapeAngebotHtml(addon)}</li>`
+      ).join("")}</ul></div>`
+    : "";
+
+  const description = product?.description
+    ? `<p class="angebotDescription">${escapeAngebotHtml(product.description)}</p>`
+    : "";
+
+  const duration = product
+    ? formatCatalogMinutes(product.duration)
+    : (parsed.rawLines.find(line => line.startsWith("Zeit:")) || "")
+      .replace(/^Zeit:\s*/, "");
+
+  return `
+
+<article class="angebotService${isTravel ? " angebotService--travel" : ""}">
+
+  <div class="angebotServiceHead">
+    <h4>${escapeAngebotHtml(serviceTitle)}</h4>
+    <span class="angebotServicePrice">${escapeAngebotHtml(formatAngebotEuro(item.total))}</span>
+  </div>
+
+  ${duration ? `<p class="angebotDuration"><strong>Zeit:</strong> ${escapeAngebotHtml(duration)}</p>` : ""}
+
+  ${description}
+
+  ${includesHtml ? `<div class="angebotScope"><strong>Leistungsumfang</strong>${includesHtml}</div>` : ""}
+
+  ${addonsHtml}
+
+  ${travelDetailsHtml}
+
+  ${parsed.manualNote ? `<p class="angebotManual"><strong>Ergänzung:</strong> ${escapeAngebotHtml(parsed.manualNote)}</p>` : ""}
+
+</article>
+
+`;
+
+}
+
 function getCompanyConfig() {
 
   return angebotState.company || ANGEBOT_COMPANY_FALLBACK;
@@ -528,13 +699,12 @@ function buildOfferDocument(project, version, createdDate) {
   const blocks = getProjectOfferBlocks(project);
   const items = buildOfferItems(blocks);
   const totals = calculateOfferTotals(blocks);
-  const client = splitClientName(project.client);
   const eventDate = splitProjectDateValue(project.date);
   const versionLabel = "Angebot V" + version;
   const createdLabel = formatOfferCreatedLabel(createdDate);
   const validityLabel = getValidityLabel(createdDate);
-  const verwendungszweck =
-    "Anzahlung – " + (project.title || "Projekt");
+  const verwendungszweck = getVerwendungszweckLabel(project);
+  const clientName = getClientDisplayName(project);
 
   const plainLines = [
     versionLabel,
@@ -548,135 +718,75 @@ function buildOfferDocument(project, version, createdDate) {
     "Erstellt am " + createdLabel,
     validityLabel,
     "",
+    OFFER_SECTION_RULE,
     "KUNDE",
-    "Vorname: " + client.vorname,
-    "Nachname: " + client.nachname,
-    "E-Mail: " + (project.email || "-"),
-    "Telefon: " + (project.phone || "-"),
-    "Adresse: " + (project.clientAddress || "-"),
+    OFFER_SECTION_RULE,
+    formatOfferPlainField("Name / Firma:", clientName),
+    formatOfferPlainField("E-Mail:", project.email || "—"),
+    formatOfferPlainField("Telefon:", project.phone || "—"),
+    formatOfferPlainField("Adresse:", project.clientAddress || "—"),
     "",
+    OFFER_SECTION_RULE,
     "EVENT",
-    "Eventtyp: " + (project.eventType || "-"),
-    "Veranstaltungsdatum: " + (eventDate.displayDate || "noch offen"),
-    "Uhrzeit: " + (eventDate.displayTime || "-"),
-    "Ort: " + getEventAddress(project),
+    OFFER_SECTION_RULE,
+    formatOfferPlainField("Datum:", eventDate.displayDate || "noch offen"),
+    formatOfferPlainField("Uhrzeit:", eventDate.displayTime || "—"),
+    formatOfferPlainField("Ort:", getEventAddress(project)),
     "",
-    "LEISTUNGEN"
-  ].filter(Boolean);
+    OFFER_SECTION_RULE,
+    "LEISTUNGEN",
+    OFFER_SECTION_RULE
+  ];
 
   items.forEach(item => {
-
-    const product = item.product;
-    const parsed = item.parsed;
-
-    plainLines.push("");
-    plainLines.push("Produkt: " + parsed.productName);
-    plainLines.push("Preis: " + formatAngebotEuro(item.total));
-
-    if (product) {
-      plainLines.push(
-        "Zeit: " + formatCatalogMinutes(product.duration)
-      );
-      if (product.description) {
-        plainLines.push("Beschreibung: " + product.description);
-      }
-      if (Array.isArray(product.includes) && product.includes.length) {
-        plainLines.push("Leistungsumfang:");
-        product.includes.forEach(entry => {
-          plainLines.push("- " + entry);
-        });
-      }
-    } else if (parsed.rawLines.find(line => line.startsWith("Zeit:"))) {
-      plainLines.push(parsed.rawLines.find(line => line.startsWith("Zeit:")));
-    }
-
-    if (parsed.addons.length) {
-      plainLines.push("Zusatzleistungen:");
-      parsed.addons.forEach(addon => {
-        plainLines.push("- " + addon);
-      });
-    }
-
-    if (parsed.manualNote) {
-      plainLines.push("Ergänzung: " + parsed.manualNote);
-    }
-
+    plainLines.push(...formatOfferPlainServiceLines(item));
   });
 
   if (!items.length) {
-    plainLines.push("- Kein Paket in Notizen");
+    plainLines.push("", "  Kein Paket in Notizen");
   }
 
   plainLines.push(
     "",
-    "GESAMTPREIS: " + formatAngebotEuro(totals.total),
-    "Anzahlung (" + totals.depositPercent + " %): " + formatAngebotEuro(totals.deposit),
-    "Restzahlung: " + formatAngebotEuro(totals.remainder),
+    OFFER_SECTION_RULE,
+    formatOfferPlainField(
+      "Gesamtpreis:",
+      formatAngebotEuro(totals.total)
+    ),
+    formatOfferPlainField(
+      "Anzahlung (" + totals.depositPercent + " %):",
+      formatAngebotEuro(totals.deposit)
+    ),
+    formatOfferPlainField(
+      "Restzahlung:",
+      formatAngebotEuro(totals.remainder)
+    ),
     "",
+    OFFER_SECTION_RULE,
     "BANKVERBINDUNG",
+    OFFER_SECTION_RULE,
     company.bank?.name || "",
-    "Kontoinhaber: " + (company.bank?.accountHolder || company.owner || ""),
-    "IBAN: " + (company.bank?.iban || ""),
-    company.bank?.bic ? "BIC: " + company.bank.bic : "",
-    "Verwendungszweck: " + verwendungszweck,
+    formatOfferPlainField(
+      "Kontoinhaber:",
+      company.bank?.accountHolder || company.owner || ""
+    ),
+    formatOfferPlainField("IBAN:", company.bank?.iban || ""),
+    company.bank?.bic
+      ? formatOfferPlainField("BIC:", company.bank.bic)
+      : "",
+    formatOfferPlainField("Verwendungszweck:", verwendungszweck),
     "",
     settings.legalUnverbindlich || "",
     settings.legalUstg || ""
   );
 
-  const plainText = plainLines.filter(line => line !== "").join("\n");
+  const plainText = plainLines
+    .filter(line => line !== null && line !== undefined)
+    .join("\n")
+    .trim();
 
   const servicesHtml = items.length
-    ? items.map(item => {
-
-        const product = item.product;
-        const parsed = item.parsed;
-
-        const includesHtml = product && Array.isArray(product.includes)
-          ? `<ul class="angebotIncludes">${product.includes.map(entry =>
-              `<li>${escapeAngebotHtml(entry)}</li>`
-            ).join("")}</ul>`
-          : "";
-
-        const addonsHtml = parsed.addons.length
-          ? `<div class="angebotAddons"><strong>Zusatzleistungen</strong><ul>${parsed.addons.map(addon =>
-              `<li>${escapeAngebotHtml(addon)}</li>`
-            ).join("")}</ul></div>`
-          : "";
-
-        const description = product?.description
-          ? `<p class="angebotDescription">${escapeAngebotHtml(product.description)}</p>`
-          : "";
-
-        const duration = product
-          ? formatCatalogMinutes(product.duration)
-          : (parsed.rawLines.find(line => line.startsWith("Zeit:")) || "")
-            .replace(/^Zeit:\s*/, "");
-
-        return `
-
-<article class="angebotService">
-
-  <div class="angebotServiceHead">
-    <h4>${escapeAngebotHtml(parsed.productName)}</h4>
-    <span class="angebotServicePrice">${escapeAngebotHtml(formatAngebotEuro(item.total))}</span>
-  </div>
-
-  ${duration ? `<p class="angebotDuration"><strong>Zeit:</strong> ${escapeAngebotHtml(duration)}</p>` : ""}
-
-  ${description}
-
-  ${includesHtml ? `<div class="angebotScope"><strong>Leistungsumfang</strong>${includesHtml}</div>` : ""}
-
-  ${addonsHtml}
-
-  ${parsed.manualNote ? `<p class="angebotManual"><strong>Ergänzung:</strong> ${escapeAngebotHtml(parsed.manualNote)}</p>` : ""}
-
-</article>
-
-`;
-
-      }).join("")
+    ? items.map(renderOfferServiceHtml).join("")
     : `<p class="angebotEmpty">Kein Paket in Notizen. Bitte Paket im Katalog wählen.</p>`;
 
   const html = `
@@ -700,8 +810,7 @@ function buildOfferDocument(project, version, createdDate) {
 
   <section class="angebotSection">
     <h3>Kunde</h3>
-    <p><strong>Vorname:</strong> ${escapeAngebotHtml(client.vorname)}</p>
-    <p><strong>Nachname:</strong> ${escapeAngebotHtml(client.nachname)}</p>
+    <p><strong>Name / Firma:</strong> ${escapeAngebotHtml(clientName)}</p>
     <p><strong>E-Mail:</strong> ${escapeAngebotHtml(project.email || "—")}</p>
     <p><strong>Telefon:</strong> ${escapeAngebotHtml(project.phone || "—")}</p>
     <p><strong>Adresse:</strong> ${escapeAngebotHtml(project.clientAddress || "—")}</p>
@@ -709,7 +818,6 @@ function buildOfferDocument(project, version, createdDate) {
 
   <section class="angebotSection">
     <h3>Event</h3>
-    <p><strong>Eventtyp:</strong> ${escapeAngebotHtml(project.eventType || "—")}</p>
     <p><strong>Veranstaltungsdatum:</strong> ${escapeAngebotHtml(eventDate.displayDate || "noch offen")}</p>
     <p><strong>Uhrzeit:</strong> ${escapeAngebotHtml(eventDate.displayTime || "—")}</p>
     <p><strong>Ort:</strong> ${escapeAngebotHtml(getEventAddress(project))}</p>
@@ -764,21 +872,25 @@ function buildOfferDocument(project, version, createdDate) {
 
 }
 
+function formatOfferReadableSpacing(text) {
+
+  return String(text || "")
+    .split("\n")
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .join("\n\n");
+
+}
+
 function buildOfferEmailIntro(project) {
 
   const company = getCompanyConfig();
-  const client = splitClientName(project.client);
-  const settings = getOfferSettings();
 
   return [
-    "Hallo " + client.vorname + ",",
-    "",
+    "Hallo " + getClientGreeting(project) + ",",
     "vielen Dank für Ihre Anfrage.",
-    "",
     "Anbei erhalten Sie Ihr persönliches Angebot.",
-    "",
     "Bei Fragen stehe ich Ihnen jederzeit gerne zur Verfügung.",
-    "",
     "Mit freundlichen Grüßen",
     company.owner || "Marcin Porębski",
     company.brand || "NoirFrame"
@@ -791,12 +903,14 @@ function buildOfferEmailBody(project, version, createdDate) {
   const offerDoc = buildOfferDocument(project, version, createdDate);
   const intro = buildOfferEmailIntro(project);
 
-  return (
+  const rawBody =
     intro +
-    "\n\n" +
-    "────────────────────────────\n\n" +
-    offerDoc.plainText
-  );
+    "\n" +
+    OFFER_SECTION_RULE +
+    "\n" +
+    offerDoc.plainText;
+
+  return formatOfferReadableSpacing(rawBody);
 
 }
 
@@ -849,16 +963,6 @@ function shouldUseGmailAccountChooser() {
   }
 
   return false;
-
-}
-
-function needsGmailClipboardFallback(bodyLength) {
-
-  if (bodyLength <= 1500) {
-    return false;
-  }
-
-  return isAppleMobile() || isGoogleChrome();
 
 }
 
@@ -943,24 +1047,11 @@ function copyOfferTextToClipboard(text) {
 
 function buildOfferGmailWebUrl(project, version, createdDate) {
 
-  const fullBody = buildOfferEmailBody(
+  const bodyText = buildOfferEmailBody(
     project,
     version,
     createdDate
   );
-
-  let bodyText = fullBody;
-
-  if (needsGmailClipboardFallback(fullBody.length)) {
-
-    bodyText =
-      buildOfferEmailIntro(project) +
-      "\n\n(Hinweis: Vollständiges Angebot wurde in die " +
-      "Zwischenablage kopiert. Bitte in Gmail einfügen.)";
-
-    copyOfferTextToClipboard(fullBody);
-
-  }
 
   const composeUrl =
     "https://mail.google.com/mail/?" +
@@ -1158,17 +1249,13 @@ async function openMobileGmailSendSheet(
       " · Betreff: " + subject;
   }
 
-  setMobileGmailSendStatus("Angebotstext wird kopiert…");
+  setMobileGmailSendStatus(
+    "Gmail öffnen — vollständiges Angebot wird übernommen."
+  );
 
   modal.classList.remove("hidden");
 
-  const copied = await copyOfferTextToClipboard(bodyText);
-
-  setMobileGmailSendStatus(
-    copied
-      ? "Text kopiert. Gmail öffnen — bei Bedarf einfügen (halten → Einfügen)."
-      : "Gmail öffnen. Falls leer: „Text kopieren“, dann in Gmail einfügen."
-  );
+  copyOfferTextToClipboard(bodyText);
 
 }
 

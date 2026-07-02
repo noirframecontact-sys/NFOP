@@ -1366,6 +1366,14 @@ p {
 
 }
 
+.clientNamePlaceholder {
+
+  color: var(--nf-muted);
+
+  font-style: italic;
+
+}
+
 .projectAddress,
 .projectNotes {
 
@@ -1524,6 +1532,43 @@ p {
   line-height: 1;
 
   cursor: pointer;
+
+}
+
+.projectNotesOfferEdit {
+
+  flex-shrink: 0;
+
+  width: 32px;
+
+  height: 32px;
+
+  margin: 0;
+
+  padding: 0;
+
+  border: 2px solid var(--nf-frame);
+
+  background: var(--nf-panel);
+
+  color: var(--nf-muted);
+
+  font-size: 16px;
+
+  font-weight: 700;
+
+  line-height: 1;
+
+  cursor: pointer;
+
+}
+
+.projectNotesOfferEdit:hover,
+.projectNotesOfferEdit:focus-visible {
+
+  color: var(--nf-ink);
+
+  border-color: var(--nf-ink);
 
 }
 
@@ -3184,13 +3229,22 @@ body.nf-modal-open {
 
 .angebotDuration,
 .angebotDescription,
-.angebotManual {
+.angebotManual,
+.angebotTravelDetail {
 
   margin: 6px 0 0;
 
   font-size: 13px;
 
   color: #444444;
+
+}
+
+.angebotTravelDetail {
+
+  padding-left: 2px;
+
+  color: #666666;
 
 }
 
@@ -3587,6 +3641,26 @@ body.nf-modal-open {
   background: var(--nf-plastic);
 
   border: 1px solid var(--nf-frame);
+
+}
+
+.catalogOfferTotal {
+
+  margin: 12px 0 0;
+
+  padding: 10px 12px;
+
+  font-size: 15px;
+
+  font-weight: 700;
+
+  line-height: 1.4;
+
+  color: var(--nf-ink);
+
+  background: var(--nf-panel);
+
+  border: 2px solid var(--nf-frame);
 
 }
 

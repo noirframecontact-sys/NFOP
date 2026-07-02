@@ -330,7 +330,9 @@ const catalogState = {
 
   currency: "EUR",
 
-  locale: "de-DE"
+  locale: "de-DE",
+
+  editContext: null
 
 };
 
@@ -1030,7 +1032,8 @@ function calculateCatalogTravel(km) {
   if (km <= includedKm) {
 
     return {
-      km,
+      oneWayKm: km,
+      totalKm: km,
       chargeableKm: 0,
       cost: 0,
       included: true,
@@ -1039,12 +1042,13 @@ function calculateCatalogTravel(km) {
 
   }
 
-  const chargeableKm = km - includedKm;
+  const totalKm = km * 2;
 
   return {
-    km,
-    chargeableKm,
-    cost: chargeableKm * ratePerKm,
+    oneWayKm: km,
+    totalKm,
+    chargeableKm: totalKm,
+    cost: totalKm * ratePerKm,
     included: false,
     ratePerKm
   };
@@ -1076,15 +1080,16 @@ function buildCatalogTravelNotesText(km) {
   if (travel.included) {
 
     return [
-      `🚗 Anfahrt — ${travel.km} km`,
+      `🚗 Anfahrt — ${travel.oneWayKm} km (einfach)`,
       `Bis ${includedKm} km — inklusive`
     ].join("\n");
 
   }
 
   return [
-    `🚗 Anfahrt — ${travel.km} km`,
-    `${travel.chargeableKm} km über ${includedKm} × ${ratePerKm.toFixed(2).replace(".", ",")} €`,
+    `🚗 Anfahrt — ${travel.oneWayKm} km (einfach)`,
+    `Gesamt: ${travel.totalKm} km (Hin & Rück)`,
+    `${travel.totalKm} km × ${ratePerKm.toFixed(2).replace(".", ",")} €`,
     `Kosten: ${formatCatalogTravelCost(travel.cost)}`
   ].join("\n");
 
@@ -1118,12 +1123,13 @@ function updateCatalogTravelCalc(
   }
 
   if (travel.included) {
-    calc.textContent = `${travel.km} km — inklusive`;
+    calc.textContent =
+      `${travel.oneWayKm} km (einfach) — inklusive`;
     return;
   }
 
   calc.textContent =
-    `${travel.km} km · ${travel.chargeableKm} km × ${ratePerKm.toFixed(2).replace(".", ",")} € = ${formatCatalogTravelCost(travel.cost)}`;
+    `${travel.oneWayKm} km (einfach) · ${travel.totalKm} km gesamt · ${ratePerKm.toFixed(2).replace(".", ",")} €/km = ${formatCatalogTravelCost(travel.cost)}`;
 
 }
 
@@ -1146,6 +1152,10 @@ function setupCatalogTravelInputs() {
 
     input.addEventListener("input", () => {
       updateCatalogTravelCalc(kmInputId, calcId);
+      const product = getCatalogProductById(catalogState.activeProductId);
+      if (product) {
+        updateCatalogOfferTotalDisplay(product);
+      }
     });
 
     updateCatalogTravelCalc(kmInputId, calcId);
@@ -1296,6 +1306,268 @@ function setupCatalogProjectTravelPrefill() {
 
 }
 
+function isTravelOfferContent(content) {
+
+  return (String(content || "").split("\n")[0] || "").includes("Anfahrt");
+
+}
+
+function parseTravelKmFromOfferContent(content) {
+
+  const firstLine = String(content || "").split("\n")[0] || "";
+  const match = firstLine.match(/(\d+)\s*km/i);
+
+  return match ? Number(match[1]) : null;
+
+}
+
+function findProductIdFromOfferTitle(titleLine) {
+
+  let cleanName = String(titleLine || "")
+    .replace(/^📦\s*/, "")
+    .split(" — ")[0]
+    .trim();
+
+  if (cleanName === "Hochzeit") {
+    cleanName = "Hochzeit Standard";
+  }
+
+  const product = catalogState.products.find(
+    item => item.name === cleanName
+  );
+
+  return product ? product.id : null;
+
+}
+
+function parseAddonIdsFromOfferContent(content) {
+
+  const lines = String(content || "").split("\n");
+  const addonIds = [];
+  let inZusatz = false;
+
+  lines.forEach(line => {
+
+    const trimmed = line.trim();
+
+    if (trimmed === "Zusatz:") {
+      inZusatz = true;
+      return;
+    }
+
+    if (trimmed.startsWith("Ergänzung:")) {
+      inZusatz = false;
+      return;
+    }
+
+    if (inZusatz && trimmed.startsWith("-")) {
+
+      const addonName = trimmed
+        .replace(/^-\s*/, "")
+        .split(" (")[0]
+        .trim();
+
+      const legacyAddonNames = {
+        "Drone Footage": "Drone",
+        "Highlights Facebook Reel": "Social Media Reel",
+        "Extra Hour": "Zusätzliche Stunde",
+        "Express Delivery": "Express Delivery"
+      };
+
+      const resolvedName =
+        legacyAddonNames[addonName] || addonName;
+
+      const addon = Object.values(catalogState.addonsById).find(
+        item => item.name === resolvedName
+      );
+
+      if (addon) {
+        addonIds.push(addon.id);
+      }
+
+    }
+
+  });
+
+  return addonIds;
+
+}
+
+function parseManualTextFromOfferContent(content) {
+
+  const lines = String(content || "").split("\n");
+
+  for (let index = 0; index < lines.length; index++) {
+
+    const line = lines[index].trim();
+
+    if (line.startsWith("Ergänzung:")) {
+      return line.replace(/^Ergänzung:\s*/, "");
+    }
+
+  }
+
+  return "";
+
+}
+
+function parseOfferBlockForEdit(content) {
+
+  const lines = String(content || "")
+    .split("\n")
+    .map(line => line.trim())
+    .filter(Boolean);
+
+  const titleLine = lines[0] || "";
+
+  return {
+    productId: findProductIdFromOfferTitle(titleLine),
+    addonIds: parseAddonIdsFromOfferContent(content),
+    manualText: parseManualTextFromOfferContent(content)
+  };
+
+}
+
+function findTravelOfferIndexInNotes(notes) {
+
+  const parts = typeof window.NF_parseProjectNotesParts === "function"
+    ? window.NF_parseProjectNotesParts(notes || "")
+    : [];
+
+  for (let index = 0; index < parts.length; index++) {
+
+    const part = parts[index];
+
+    if (
+      part.type === "offer" &&
+      isTravelOfferContent(part.content)
+    ) {
+      return part.offerIndex;
+    }
+
+  }
+
+  return null;
+
+}
+
+function calculateCatalogOfferTotal(
+  product,
+  selectedAddonRefs,
+  travelKm
+) {
+
+  if (!product) {
+    return 0;
+  }
+
+  let total = Number(product.price) || 0;
+
+  selectedAddonRefs.forEach(ref => {
+
+    const addon = catalogState.addonsById[ref];
+
+    if (addon && typeof addon.price === "number") {
+      total += addon.price;
+    }
+
+  });
+
+  const travel = calculateCatalogTravel(travelKm);
+
+  if (travel && !travel.included) {
+    total += travel.cost;
+  }
+
+  return total;
+
+}
+
+function formatCatalogOfferTotal(amount) {
+
+  return new Intl.NumberFormat(
+    catalogState.locale || "de-DE",
+    {
+      style: "currency",
+      currency: catalogState.currency || "EUR"
+    }
+  ).format(amount);
+
+}
+
+function updateCatalogOfferTotalDisplay(product) {
+
+  if (!product) {
+    return;
+  }
+
+  const {
+    travelInput,
+    addonsSelector
+  } = getActiveCatalogOfferElements();
+
+  const travelKm = parseCatalogTravelKm(
+    travelInput ? travelInput.value : ""
+  );
+
+  const addonRefs = getSelectedCatalogOfferAddonRefs(
+    addonsSelector
+  );
+
+  const total = calculateCatalogOfferTotal(
+    product,
+    addonRefs,
+    travelKm
+  );
+
+  const text = `Gesamtpreis: ${formatCatalogOfferTotal(total)}`;
+
+  [
+    "catalogOfferTotal",
+    "catalogPanelOfferTotal"
+  ].forEach(id => {
+
+    const element = document.getElementById(id);
+
+    if (element) {
+      element.textContent = text;
+    }
+
+  });
+
+}
+
+function updateCatalogApplyButtonLabels() {
+
+  const isEdit = Boolean(catalogState.editContext);
+
+  const label = isEdit
+    ? "💾 Paket aktualisieren"
+    : "✅ Zum Projekt übernehmen";
+
+  [
+    "catalogOfferBtn",
+    "catalogPanelOfferBtn"
+  ].forEach(id => {
+
+    const button = document.getElementById(id);
+
+    if (button) {
+      button.textContent = label;
+    }
+
+  });
+
+}
+
+function clearCatalogEditContext() {
+
+  catalogState.editContext = null;
+
+  updateCatalogApplyButtonLabels();
+
+}
+
 function buildCatalogOfferNotesText(
   product,
   selectedAddonRefs,
@@ -1383,7 +1655,8 @@ function renderCatalogOfferProjectOptions(
 function renderCatalogOfferAddonsList(
   containerId,
   checkboxName,
-  product
+  product,
+  selectedAddonIds
 ) {
 
   const container = document.getElementById(containerId);
@@ -1391,6 +1664,7 @@ function renderCatalogOfferAddonsList(
   if (!container) return;
 
   const addons = getCatalogOfferSelectableAddons(product);
+  const selected = new Set(selectedAddonIds || []);
 
   if (!addons.length) {
 
@@ -1408,15 +1682,26 @@ function renderCatalogOfferAddonsList(
     type="checkbox"
     name="${checkboxName}"
     value="${addon.id}"
+    ${selected.has(addon.id) ? "checked" : ""}
   >
   <span>${addon.name} — ${formatCatalogAddonPrice(addon)}</span>
 </label>
 
   `).join("");
 
+  container.querySelectorAll("input[type='checkbox']").forEach(input => {
+
+    input.addEventListener("change", () => {
+      updateCatalogOfferTotalDisplay(product);
+    });
+
+  });
+
 }
 
-function renderCatalogOfferControls(product) {
+function renderCatalogOfferControls(product, prefill) {
+
+  const options = prefill || {};
 
   const projects =
     typeof window.NF_getProjectOptions === "function"
@@ -1424,7 +1709,8 @@ function renderCatalogOfferControls(product) {
       : [];
 
   const defaultProjectId =
-    projects.length ? projects[0].id : "";
+    options.projectId ||
+    (projects.length ? projects[0].id : "");
 
   renderCatalogOfferProjectOptions(
     "catalogOfferProjectSelect",
@@ -1439,26 +1725,30 @@ function renderCatalogOfferControls(product) {
   renderCatalogOfferAddonsList(
     "catalogOfferAddonsList",
     "catalogOfferAddon",
-    product
+    product,
+    options.addonIds
   );
 
   renderCatalogOfferAddonsList(
     "catalogPanelOfferAddonsList",
     "catalogPanelOfferAddon",
-    product
+    product,
+    options.addonIds
   );
 
   [
-    "catalogOfferManualInput",
-    "catalogPanelOfferManualInput",
-    "catalogOfferTravelKm",
-    "catalogPanelOfferTravelKm"
-  ].forEach(id => {
+    ["catalogOfferManualInput", options.manualText || ""],
+    ["catalogPanelOfferManualInput", options.manualText || ""],
+    ["catalogOfferTravelKm", options.travelKm ?? ""],
+    ["catalogPanelOfferTravelKm", options.travelKm ?? ""]
+  ].forEach(([id, value]) => {
 
     const input = document.getElementById(id);
 
     if (input) {
-      input.value = "";
+      input.value = value === null || value === undefined
+        ? ""
+        : String(value);
     }
 
   });
@@ -1473,7 +1763,28 @@ function renderCatalogOfferControls(product) {
     "catalogPanelOfferTravelCalc"
   );
 
-  prefillCatalogTravelKmForProject(defaultProjectId);
+  updateCatalogApplyButtonLabels();
+
+  updateCatalogOfferTotalDisplay(product);
+
+  const isEdit = Boolean(catalogState.editContext);
+
+  [
+    "catalogOfferProjectSelect",
+    "catalogPanelOfferProjectSelect"
+  ].forEach(id => {
+
+    const select = document.getElementById(id);
+
+    if (select) {
+      select.disabled = isEdit;
+    }
+
+  });
+
+  if (options.travelKm === undefined || options.travelKm === null) {
+    prefillCatalogTravelKmForProject(defaultProjectId);
+  }
 
 }
 
@@ -1549,13 +1860,11 @@ function handleCatalogApplyClick(triggerButton) {
     addonsSelector
   } = getActiveCatalogOfferElements();
 
-  if (!projectSelect) {
-    // TODO NFOP 3.2 — nativer alert(); eigenes Modal
-    alert("Paket konnte nicht übernommen werden.");
-    return;
-  }
+  const editContext = catalogState.editContext;
 
-  const projectId = projectSelect.value;
+  const projectId = editContext
+    ? editContext.projectId
+    : (projectSelect ? projectSelect.value : "");
 
   if (!projectId) {
     // TODO NFOP 3.2 — nativer alert(); eigenes Modal
@@ -1576,16 +1885,38 @@ function handleCatalogApplyClick(triggerButton) {
       ? window.NF_applyCatalogOfferToProject
       : null;
 
-  if (!applyOffer) {
+  const updateOffer =
+    typeof window.NF_updateCatalogOfferInProject === "function"
+      ? window.NF_updateCatalogOfferInProject
+      : null;
+
+  const removeOffer =
+    typeof window.NF_removeProjectOfferBlock === "function"
+      ? window.NF_removeProjectOfferBlock
+      : null;
+
+  if (!applyOffer || !updateOffer) {
     // TODO NFOP 3.2 — nativer alert(); eigenes Modal
     alert("Notizen konnten nicht gespeichert werden.");
     return;
   }
 
-  if (!applyOffer(projectId, offerText)) {
-    // TODO NFOP 3.2 — nativer alert(); eigenes Modal
-    alert("Notizen konnten nicht gespeichert werden.");
-    return;
+  if (editContext) {
+
+    if (!updateOffer(projectId, editContext.offerIndex, offerText)) {
+      // TODO NFOP 3.2 — nativer alert(); eigenes Modal
+      alert("Notizen konnten nicht gespeichert werden.");
+      return;
+    }
+
+  } else {
+
+    if (!applyOffer(projectId, offerText)) {
+      // TODO NFOP 3.2 — nativer alert(); eigenes Modal
+      alert("Notizen konnten nicht gespeichert werden.");
+      return;
+    }
+
   }
 
   const travelKm = parseCatalogTravelKm(
@@ -1595,8 +1926,35 @@ function handleCatalogApplyClick(triggerButton) {
   const travelText = buildCatalogTravelNotesText(travelKm);
 
   if (travelText) {
-    applyOffer(projectId, travelText);
+
+    if (
+      editContext &&
+      editContext.travelOfferIndex !== null &&
+      editContext.travelOfferIndex !== undefined
+    ) {
+      updateOffer(
+        projectId,
+        editContext.travelOfferIndex,
+        travelText
+      );
+    } else {
+      applyOffer(projectId, travelText);
+    }
+
+  } else if (
+    editContext &&
+    editContext.travelOfferIndex !== null &&
+    editContext.travelOfferIndex !== undefined &&
+    removeOffer
+  ) {
+    removeOffer(
+      projectId,
+      editContext.travelOfferIndex,
+      true
+    );
   }
+
+  clearCatalogEditContext();
 
   clearCatalogProductSelection();
 
@@ -1636,7 +1994,13 @@ function renderCatalogProductDetail(product) {
     panelBody.innerHTML = bodyHtml;
   }
 
-  renderCatalogOfferControls(product);
+  const prefill =
+    catalogState.editContext &&
+    catalogState.editContext.productId === product.id
+      ? catalogState.editContext.prefill
+      : null;
+
+  renderCatalogOfferControls(product, prefill);
 
   [
     "catalogOfferBtn",
@@ -1702,6 +2066,8 @@ function closeCatalogProductModal() {
 function clearCatalogProductSelection() {
 
   catalogState.activeProductId = null;
+
+  clearCatalogEditContext();
 
   closeCatalogProductModal();
 
@@ -1794,6 +2160,8 @@ async function openCatalogScreen() {
 
   catalogState.activeProductId = null;
 
+  clearCatalogEditContext();
+
   hideCatalogDetailPanel();
 
   closeCatalogProductModal();
@@ -1821,6 +2189,104 @@ function closeCatalogScreen() {
     .classList.add("hidden");
 
 }
+
+async function openCatalogForOfferEdit(projectId, offerIndex) {
+
+  await loadCatalog({ force: true });
+
+  const getProject =
+    typeof window.NF_getProjectById === "function"
+      ? window.NF_getProjectById
+      : null;
+
+  const parseParts =
+    typeof window.NF_parseProjectNotesParts === "function"
+      ? window.NF_parseProjectNotesParts
+      : null;
+
+  const project = getProject ? getProject(projectId) : null;
+
+  if (!project || !parseParts) {
+    return;
+  }
+
+  const parts = parseParts(project.notes || "");
+  const offerPart = parts.find(
+    part =>
+      part.type === "offer" &&
+      part.offerIndex === offerIndex
+  );
+
+  if (!offerPart || isTravelOfferContent(offerPart.content)) {
+    return;
+  }
+
+  const parsed = parseOfferBlockForEdit(offerPart.content);
+
+  if (!parsed.productId) {
+    // TODO NFOP 3.2 — nativer alert(); eigenes Modal
+    alert("Paket konnte nicht zum Bearbeiten geladen werden.");
+    return;
+  }
+
+  const travelOfferIndex =
+    findTravelOfferIndexInNotes(project.notes);
+
+  let travelKm = null;
+
+  if (travelOfferIndex !== null) {
+
+    const travelPart = parts.find(
+      part =>
+        part.type === "offer" &&
+        part.offerIndex === travelOfferIndex
+    );
+
+    if (travelPart) {
+      travelKm = parseTravelKmFromOfferContent(
+        travelPart.content
+      );
+    }
+
+  }
+
+  catalogState.editContext = {
+    projectId,
+    offerIndex,
+    travelOfferIndex,
+    productId: parsed.productId,
+    prefill: {
+      projectId,
+      addonIds: parsed.addonIds,
+      manualText: parsed.manualText,
+      travelKm
+    }
+  };
+
+  catalogState.query = "";
+  catalogState.activeProductId = parsed.productId;
+
+  const search = document.getElementById("catalogSearchInput");
+
+  if (search) {
+    search.value = "";
+  }
+
+  hideCatalogDetailPanel();
+
+  closeCatalogProductModal();
+
+  renderCatalog();
+
+  document
+    .getElementById("catalogModal")
+    .classList.remove("hidden");
+
+  openCatalogProduct(parsed.productId);
+
+}
+
+window.NF_openCatalogForOfferEdit = openCatalogForOfferEdit;
 
 function bindCatalogCardEvents() {
 

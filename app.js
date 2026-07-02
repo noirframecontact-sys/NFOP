@@ -963,6 +963,18 @@ function buildProjectNotesHtml(notes, projectId) {
     const titleLine =
       part.content.split("\n")[0] || "Angebot";
 
+    const isTravel = isTravelOfferContent(part.content);
+
+    const editButton = isTravel
+      ? ""
+      : `
+    <button
+      type="button"
+      class="projectNotesOfferEdit"
+      aria-label="Paket bearbeiten"
+      title="Paket bearbeiten"
+    >✏️</button>`;
+
     return `
 
 <div
@@ -981,6 +993,8 @@ function buildProjectNotesHtml(notes, projectId) {
       <span class="projectNotesOfferIcon" aria-hidden="true">＋</span>
       <span class="projectNotesOfferTitle">${escapeHtml(titleLine)}</span>
     </button>
+
+    ${editButton}
 
     <button
       type="button"
@@ -1026,9 +1040,119 @@ function renderProjectNotesDisplay(project) {
 
 }
 
+function replaceOfferInNotes(notes, offerIndexToReplace, newContent) {
+
+  let offerCount = 0;
+
+  const updated = parseProjectNotesParts(notes).map(part => {
+
+    if (part.type !== "offer") {
+      return part;
+    }
+
+    if (offerCount === offerIndexToReplace) {
+
+      offerCount++;
+
+      return {
+        type: "offer",
+        content: String(newContent || "").trim(),
+        offerIndex: part.offerIndex
+      };
+
+    }
+
+    offerCount++;
+
+    return part;
+
+  });
+
+  return serializeProjectNotesParts(updated);
+
+}
+
+function updateProjectOfferBlock(
+  projectId,
+  offerIndex,
+  offerText
+) {
+
+  const project = state.projects.find(
+    p => p.id === projectId
+  );
+
+  if (!project) return false;
+
+  if (
+    Number.isNaN(offerIndex) ||
+    offerIndex < 0
+  ) {
+    return false;
+  }
+
+  const trimmed = String(offerText || "").trim();
+
+  if (!trimmed) {
+    return false;
+  }
+
+  const updatedNotes = replaceOfferInNotes(
+    project.notes || "",
+    offerIndex,
+    trimmed
+  );
+
+  if (updatedNotes.length > NOTES_MAX_LENGTH) {
+
+    // TODO NFOP 3.2 — nativer alert(); eigenes Modal
+    alert(
+      "Notizen voll (max " +
+      NOTES_MAX_LENGTH +
+      " Zeichen). Bitte kürzen."
+    );
+
+    return false;
+
+  }
+
+  project.notes = updatedNotes;
+
+  project.notesUpdatedAt =
+    new Date().toISOString();
+
+  if (editingNotesProjectId === projectId) {
+
+    const input = document.getElementById("notesInput");
+
+    if (input) {
+      input.value = project.notes;
+    }
+
+    updateNotesCharCount();
+
+    renderNotesPreviewContent();
+
+  }
+
+  saveProjects(projectId);
+
+  renderProjects();
+
+  return true;
+
+}
+
+function isTravelOfferContent(content) {
+
+  return (String(content || "").split("\n")[0] || "").includes("Anfahrt");
+
+}
+
 function removeProjectOfferBlock(
   projectId,
-  offerIndex
+  offerIndex,
+  skipConfirm
 ) {
 
   const project = state.projects.find(
@@ -1045,6 +1169,7 @@ function removeProjectOfferBlock(
   }
 
   if (
+    !skipConfirm &&
     // TODO NFOP 3.2 — nativer confirm(); eigenes Modal
     !confirm("Paket aus Notizen entfernen?")
   ) {
@@ -1115,6 +1240,42 @@ function setupNotesOfferToggleDelegation() {
           projectId,
           Number(offer.dataset.offerIndex)
         );
+
+        return;
+
+      }
+
+      const editBtn = event.target.closest(
+        ".projectNotesOfferEdit"
+      );
+
+      if (editBtn) {
+
+        event.preventDefault();
+
+        event.stopPropagation();
+
+        const offer = editBtn.closest(
+          ".projectNotesOffer"
+        );
+
+        if (!offer) return;
+
+        const projectId =
+          offer.dataset.project ||
+          offer.closest(".projectNotes")?.dataset.project;
+
+        const openEdit =
+          typeof window.NF_openCatalogForOfferEdit === "function"
+            ? window.NF_openCatalogForOfferEdit
+            : null;
+
+        if (openEdit) {
+          openEdit(
+            projectId,
+            Number(offer.dataset.offerIndex)
+          );
+        }
 
         return;
 
@@ -1227,6 +1388,12 @@ window.NF_getProjectOptions = getProjectOptionsForCatalog;
 
 window.NF_applyCatalogOfferToProject =
   applyCatalogOfferToProject;
+
+window.NF_updateCatalogOfferInProject =
+  updateProjectOfferBlock;
+
+window.NF_removeProjectOfferBlock =
+  removeProjectOfferBlock;
 
 window.NF_parseProjectNotesParts = parseProjectNotesParts;
 
@@ -1415,6 +1582,15 @@ function openClientModal(projectId){
  document.getElementById(
   "clientAddressInput"
 ).value = project.clientAddress || "";
+
+  const nameInput = document.getElementById("clientNameInput");
+
+  if (nameInput) {
+    requestAnimationFrame(() => {
+      nameInput.focus({ preventScroll: true });
+      nameInput.setSelectionRange(0, 0);
+    });
+  }
 
   document.getElementById(
     "clientModal"
@@ -2417,7 +2593,9 @@ function buildProjectCardHtml(project, options) {
           title="${kundeGate.allowed ? "" : kundeGate.message}"
         >
 
-👤 ${project.client || "—"}
+👤 ${project.client
+  ? escapeHtml(project.client)
+  : `<span class="clientNamePlaceholder">Name / Firma</span>`}
 
 <br>
 
@@ -2775,23 +2953,29 @@ document
     }
 
     project.client =
-      document.getElementById("clientNameInput").value;
+      document.getElementById("clientNameInput").value.trim();
 
     project.phone =
-      document.getElementById("clientPhoneInput").value;
+      document.getElementById("clientPhoneInput").value.trim();
 
     project.email =
-      document.getElementById("clientEmailInput").value;
+      document.getElementById("clientEmailInput").value.trim();
 
     project.clientAddress =
-  document.getElementById("clientAddressInput").value;
+      document.getElementById("clientAddressInput").value.trim();
 
     const kunde = project.tasks.find(
       task => task.label === "Kundendaten"
     );
 
+    const hasClientData =
+      project.client ||
+      project.phone ||
+      project.email ||
+      project.clientAddress;
+
     if (kunde) {
-      kunde.done = true;
+      kunde.done = Boolean(hasClientData);
     }
 
     document

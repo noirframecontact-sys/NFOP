@@ -25,7 +25,7 @@
         "Bildauswahl",
         "Nutzungsrechte für Unternehmen"
       ],
-      "addons": ["drone", "highlights-4k", "reel", "express", "extra-hour"],
+      "addons": ["second-photographer", "drone", "highlights-4k", "reel", "express", "extra-hour", "special-effects"],
       "recommended": true,
       "active": true,
       "sort": 10,
@@ -45,30 +45,72 @@
         "Bildauswahl",
         "Private Nutzungsrechte"
       ],
-      "addons": ["drone", "highlights-4k", "reel", "express", "extra-hour"],
+      "addons": ["second-photographer", "drone", "highlights-4k", "reel", "express", "extra-hour", "special-effects"],
       "active": true,
       "sort": 20,
       "tags": ["Event", "Feier", "Reportage"]
     },
     {
-      "id": "foto-hochzeit",
+      "id": "foto-hochzeit-basic",
       "category": "event",
-      "name": "Hochzeit",
-      "price": 1699,
-      "duration": 480,
-      "description": "Hochzeitsreportage — Getting Ready, Trauung, Feier.",
-      "shortDescription": "Hochzeitsreportage",
+      "name": "Hochzeit Basic",
+      "price": 1299,
+      "duration": 360,
+      "description": "Kompakte Hochzeitsreportage — Trauung und Feier bis zu 6 Stunden.",
+      "shortDescription": "Hochzeit Basic — 6 h Reportage",
       "includes": [
-        "Ganztägige Begleitung",
+        "Begleitung bis 6 Stunden",
+        "Trauung & Feier",
         "Online-Galerie",
         "Bildauswahl",
         "Private Nutzungsrechte"
       ],
-      "addons": ["drone", "highlights-4k", "reel", "express", "extra-hour"],
-      "recommended": true,
+      "addons": ["second-photographer", "drone", "highlights-4k", "reel", "extra-hour", "special-effects"],
       "active": true,
       "sort": 30,
-      "tags": ["Hochzeit", "Wedding", "Trauung"]
+      "tags": ["Hochzeit", "Wedding", "Basic", "Trauung"]
+    },
+    {
+      "id": "foto-hochzeit-standard",
+      "category": "event",
+      "name": "Hochzeit Standard",
+      "price": 1699,
+      "duration": 480,
+      "description": "Klassische Hochzeitsreportage — Getting Ready, Trauung, Feier bis zu 8 Stunden.",
+      "shortDescription": "Hochzeit Standard — 8 h Reportage",
+      "includes": [
+        "Begleitung bis 8 Stunden",
+        "Getting Ready, Trauung & Feier",
+        "Online-Galerie",
+        "Bildauswahl",
+        "Private Nutzungsrechte"
+      ],
+      "addons": ["second-photographer", "drone", "highlights-4k", "reel", "extra-hour", "special-effects"],
+      "recommended": true,
+      "active": true,
+      "sort": 31,
+      "tags": ["Hochzeit", "Wedding", "Standard", "Trauung"]
+    },
+    {
+      "id": "foto-hochzeit-signature",
+      "category": "event",
+      "name": "Hochzeit Signature",
+      "price": 2199,
+      "duration": 600,
+      "description": "Premium Hochzeitsreportage — ganztägige Begleitung mit erweitertem Leistungsumfang.",
+      "shortDescription": "Hochzeit Signature — 10 h Reportage",
+      "includes": [
+        "Ganztägige Begleitung bis 10 Stunden",
+        "Getting Ready, First Look, Trauung & Feier",
+        "Online-Galerie",
+        "Bildauswahl & Retusche",
+        "Private Nutzungsrechte",
+        "Premium Album-Vorlage"
+      ],
+      "addons": ["second-photographer", "drone", "highlights-4k", "reel", "extra-hour", "special-effects"],
+      "active": true,
+      "sort": 32,
+      "tags": ["Hochzeit", "Wedding", "Signature", "Premium", "Trauung"]
     },
     {
       "id": "foto-taufe",
@@ -84,7 +126,7 @@
         "Bildauswahl",
         "Private Nutzungsrechte"
       ],
-      "addons": ["drone", "reel", "express", "extra-hour"],
+      "addons": ["second-photographer", "drone", "reel", "express", "extra-hour", "special-effects"],
       "active": true,
       "sort": 40,
       "tags": ["Taufe", "Familie", "Event"]
@@ -103,7 +145,7 @@
         "Bildauswahl",
         "Private Nutzungsrechte"
       ],
-      "addons": ["reel", "express", "extra-hour"],
+      "addons": ["reel", "express", "extra-hour", "special-effects"],
       "active": true,
       "sort": 50,
       "tags": ["Porträt", "Portrait", "Einzelperson"]
@@ -121,7 +163,7 @@
         "Online-Bereitstellung",
         "Private Nutzungsrechte"
       ],
-      "addons": ["drone", "highlights-4k", "reel", "express", "extra-hour"],
+      "addons": ["second-photographer", "drone", "highlights-4k", "reel", "express", "extra-hour", "special-effects"],
       "active": true,
       "sort": 60,
       "tags": ["Video", "Event", "Highlights"]
@@ -139,7 +181,7 @@
         "Online-Bereitstellung",
         "Nutzungsrechte für Unternehmen"
       ],
-      "addons": ["drone", "highlights-4k", "reel", "express", "extra-hour"],
+      "addons": ["second-photographer", "drone", "highlights-4k", "reel", "express", "extra-hour", "special-effects"],
       "active": true,
       "sort": 70,
       "tags": ["Video", "Business", "Unternehmer"]
@@ -148,8 +190,14 @@
 
   "addons": [
     {
+      "id": "second-photographer",
+      "name": "Zweiter Fotograf",
+      "price": 149,
+      "active": true
+    },
+    {
       "id": "drone",
-      "name": "Drone Footage",
+      "name": "Drone",
       "price": 49,
       "active": true
     },
@@ -161,7 +209,7 @@
     },
     {
       "id": "reel",
-      "name": "Highlights Facebook Reel",
+      "name": "Social Media Reel",
       "price": 49,
       "active": true
     },
@@ -173,7 +221,13 @@
     },
     {
       "id": "extra-hour",
-      "name": "Extra Hour",
+      "name": "Zusätzliche Stunde",
+      "price": 79,
+      "active": true
+    },
+    {
+      "id": "special-effects",
+      "name": "Spezialeffekte",
       "price": 79,
       "active": true
     },
