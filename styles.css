@@ -1882,6 +1882,38 @@ button:hover {
 
 }
 
+.nfVersionMeta {
+
+  margin: 10px 0 0;
+
+  font-size: 11px;
+
+  line-height: 1.6;
+
+}
+
+.nfConnectionStatus {
+
+  margin: 6px 0 0;
+
+  font-size: 11px;
+
+  letter-spacing: 0.04em;
+
+}
+
+.nfConnectionStatusOnline {
+
+  color: #2f7a45;
+
+}
+
+.nfConnectionStatusOffline {
+
+  color: #b33a3a;
+
+}
+
 #serviceTrigger {
 
   cursor: pointer;

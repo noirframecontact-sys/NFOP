@@ -132,6 +132,18 @@ function renderFooter() {
 
   const isDark = getStoredTheme() === "dark";
 
+  const appVersion = window.NF_CONFIG?.app?.version || "4.0.0-alpha.001";
+  const appPhase = window.NF_CONFIG?.app?.phase || "ONLINE FOUNDATION";
+  const connection = window.NF_sync?.getConnectionStatus?.() || {};
+  const supabaseConfigured = connection.configured !== false;
+  const isOnline = connection.online === true;
+  const statusLabel = isOnline ? "🟢 Online" : "🔴 Offline";
+  const supabaseLabel = !supabaseConfigured
+    ? "Supabase Not Configured"
+    : isOnline
+      ? "Supabase Connected"
+      : "Supabase Offline";
+
   footer.innerHTML = `
 
     <div class="footerBar">
@@ -163,6 +175,21 @@ function renderFooter() {
       >
         ${isDark ? "DUNKELMODUS: AN" : "DUNKELMODUS: AUS"}
       </button>
+
+      <p class="nfVersionMeta">
+        NOIR FRAME Operator<br>
+        Version ${appVersion}<br>
+        ${appPhase}<br>
+        ${supabaseLabel}
+      </p>
+
+      <p
+        id="nfConnectionStatus"
+        class="nfConnectionStatus ${isOnline ? "nfConnectionStatusOnline" : "nfConnectionStatusOffline"}"
+        aria-live="polite"
+      >
+        ${statusLabel}
+      </p>
 
     </div>
 
@@ -269,6 +296,8 @@ function init() {
   window.NF_backup?.setup?.();
 
   window.NF_modalUi?.setup?.();
+
+  window.NF_sync?.init?.();
 
 }
 

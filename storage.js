@@ -270,6 +270,10 @@ function saveProjects(...revisionProjectIds) {
     window.NF_backup.onLocalDataSaved();
   }
 
+  if (typeof window.NF_sync?.schedulePersist === "function") {
+    window.NF_sync.schedulePersist(revisionProjectIds);
+  }
+
 }
 
 function loadProjects() {

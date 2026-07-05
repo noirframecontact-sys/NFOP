@@ -3,7 +3,14 @@
 window.NF_CONFIG = {
 
   app: {
-    build: "iPAD9-3.0"
+    version: "4.0.0-alpha.001",
+    phase: "ONLINE FOUNDATION",
+    build: "4.0.0-alpha.001"
+  },
+
+  supabase: {
+    url: "",
+    anonKey: ""
   },
 
   website: {
