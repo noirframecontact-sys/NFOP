@@ -150,7 +150,7 @@ function renderFooter() {
 
       <span id="serviceTrigger">
 
-  NF OP � 2026
+  NF OP © 2026
 
 </span>
 
@@ -194,6 +194,15 @@ function renderFooter() {
     </div>
 
   `;
+
+  setupFooterInteractions();
+
+}
+
+function setupFooterInteractions() {
+
+  setupThemeToggle();
+  setupServiceMode();
 
 }
 
@@ -272,10 +281,6 @@ function init() {
   renderFooter();
 
   applyTheme(getStoredTheme());
-
-  setupThemeToggle();
-
-  setupServiceMode();
 
   setupCatalog();
 
