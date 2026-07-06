@@ -11,18 +11,71 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 const out = path.join(root, "config.production.js");
 
-const url =
-  process.env.NF_SUPABASE_URL ||
+const DEFAULT_SUPABASE_URL =
   "https://mcppojmghmwwvubyrufo.supabase.co";
-const anonKey = process.env.NF_SUPABASE_ANON_KEY || "";
-const onNetlify = Boolean(process.env.NETLIFY);
+
+function nfReadEnv(primary, fallbacks = []) {
+  const names = [primary, ...fallbacks];
+
+  for (const name of names) {
+    const value = process.env[name];
+    if (value != null && String(value).trim() !== "") {
+      return String(value).trim();
+    }
+  }
+
+  const wanted = new Set(names.map(name => name.toUpperCase()));
+
+  for (const key of Object.keys(process.env)) {
+    if (!wanted.has(key.toUpperCase())) {
+      continue;
+    }
+
+    const value = process.env[key];
+    if (value != null && String(value).trim() !== "") {
+      return String(value).trim();
+    }
+  }
+
+  return "";
+}
+
+function nfIsNetlifyBuild() {
+  return Boolean(
+    process.env.NETLIFY ||
+    process.env.BUILD_ID ||
+    process.env.DEPLOY_ID ||
+    process.env.CONTEXT
+  );
+}
+
+function nfRelatedEnvKeys() {
+  return Object.keys(process.env)
+    .filter(key => /^(NF_|SUPABASE_)/i.test(key))
+    .sort();
+}
+
+const url = nfReadEnv("NF_SUPABASE_URL", ["SUPABASE_URL"]) || DEFAULT_SUPABASE_URL;
+const anonKey = nfReadEnv("NF_SUPABASE_ANON_KEY", [
+  "SUPABASE_ANON_KEY",
+  "SUPABASE_KEY"
+]);
+const onNetlify = nfIsNetlifyBuild();
 
 if (!anonKey) {
-  const msg = "[NFOP build] Missing NF_SUPABASE_ANON_KEY";
-  console.error(msg);
+  console.error("[NFOP build] Missing NF_SUPABASE_ANON_KEY");
+  console.error(
+    "[NFOP build] Related env keys visible to build:",
+    nfRelatedEnvKeys().join(", ") || "(none)"
+  );
+  console.error(
+    "[NFOP build] In Netlify UI, ensure NF_SUPABASE_ANON_KEY has the Builds scope enabled."
+  );
+
   if (onNetlify) {
     process.exit(1);
   }
+
   console.log("[NFOP build] Local build — skipping config.production.js");
   process.exit(0);
 }
