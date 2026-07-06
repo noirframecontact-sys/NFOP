@@ -1,8 +1,13 @@
 "use strict";
 
 /*
-  Copy to config.local.js and fill in your Supabase project credentials.
-  config.local.js is loaded after config.js and must not be committed.
+  Local dev: copy to config.local.js and fill in Supabase credentials.
+  config.local.js must not be committed (.gitignore).
+
+  Netlify production: set environment variables in Site settings:
+    NF_SUPABASE_URL
+    NF_SUPABASE_ANON_KEY
+  Build generates config.local.js automatically (see scripts/generate-config-local.mjs).
 */
 window.NF_CONFIG_LOCAL = {
   supabase: {
