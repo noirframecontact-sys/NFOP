@@ -69,4 +69,6 @@ See `config.local.example.js` — Supabase URL + anon key in `config.local.js`.
 
 ## Version
 
-**`4.0.0-alpha.001`** — footer + `NF_CONFIG.app.version`
+**`4.0.0-alpha.002`** — Volvo Trunk / operator-controlled sync (see `DESIGN-PRINCIPLES.md`)
+
+> Realtime synchronizes data. The operator controls the workspace.

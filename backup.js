@@ -346,10 +346,127 @@ function backupExportDefault() {
 }
 
 function backupSaveAs() {
+
+  const duplicate = backupDuplicateActiveProjectLocally();
+
   backupDownloadEnvelope(
     backupBuildEnvelope(backupGetProjects()),
     backupTimestampFilename()
   );
+
+  if (duplicate) {
+    window.NF_synchro?.refreshFooter?.();
+  }
+
+}
+
+function backupResolveActiveProject() {
+
+  const activeId =
+    typeof window.NF_getActiveProjectId === "function"
+      ? window.NF_getActiveProjectId()
+      : null;
+
+  if (activeId) {
+    return backupGetProjects().find(project => project.id === activeId) || null;
+  }
+
+  const projects = backupGetProjects().filter(
+    project => typeof isProjectComplete === "function"
+      ? !isProjectComplete(project)
+      : true
+  );
+
+  if (projects.length === 1) {
+    return projects[0];
+  }
+
+  if (!projects.length) {
+    return null;
+  }
+
+  const lines = projects.map((project, index) => {
+    return (
+      String(index + 1) +
+      ". " +
+      (project.title || "Neues Projekt") +
+      " — " +
+      (project.client || "Kunde")
+    );
+  });
+
+  // TODO NFOP 3.2 — nativer prompt(); eigenes Modal
+  const choice = window.prompt(
+    "Save As — welchen Auftrag duplizieren?\n\n" +
+      lines.join("\n") +
+      "\n\nNummer eingeben (Abbrechen = nur JSON-Export):"
+  );
+
+  if (choice === null || String(choice).trim() === "") {
+    return null;
+  }
+
+  const index = Number(choice) - 1;
+
+  if (!Number.isInteger(index) || index < 0 || index >= projects.length) {
+    // TODO NFOP 3.2 — nativer alert(); eigenes Modal
+    window.alert("Ungültige Auswahl — nur JSON-Export.");
+    return null;
+  }
+
+  return projects[index];
+
+}
+
+function backupDuplicateActiveProjectLocally() {
+
+  const source = backupResolveActiveProject();
+
+  if (!source) {
+    return null;
+  }
+
+  const duplicate = backupCloneJson(source);
+  const projects = backupGetProjects();
+  const maxNumber = projects.reduce(
+    (max, project) => Math.max(max, Number(project.number) || 0),
+    0
+  );
+
+  duplicate.id =
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : "nf-copy-" + Date.now();
+
+  duplicate.number = maxNumber + 1;
+  duplicate.title =
+    String(source.title || "Neues Projekt").trim() + " (Kopie)";
+
+  const now = new Date().toISOString();
+  duplicate.createdAt = now;
+  duplicate.updatedAt = now;
+  duplicate.notesUpdatedAt = "";
+  duplicate.lastOfferSentAt = "";
+  duplicate.lastOfferVersion = "";
+  duplicate.offerHistory = Array.isArray(source.offerHistory)
+    ? backupCloneJson(source.offerHistory)
+    : [];
+  duplicate.collapsed = false;
+
+  if (typeof state !== "undefined") {
+    state.projects.unshift(duplicate);
+  }
+
+  if (typeof saveProjects === "function") {
+    saveProjects(duplicate.id);
+  }
+
+  if (typeof renderProjects === "function") {
+    renderProjects();
+  }
+
+  return duplicate;
+
 }
 
 function backupConfirmImportMode(envelope) {

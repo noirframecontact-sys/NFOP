@@ -1,5 +1,13 @@
 "use strict";
 
+/*
+  NFOP storage — Last Known Workspace (localStorage key: nfProjects).
+
+  Restored on startup for immediate render. Not the source of truth while
+  remote changes are pending in Volvo Trunk. After operator Synchronize +
+  Apply, this snapshot is updated from the applied workspace state.
+*/
+
 const MOOSE_DELETE_UNLOCK_TITLE = "AWISTA";
 
 const NF_FACTORY_PROJECT = {
@@ -266,6 +274,8 @@ function saveProjects(...revisionProjectIds) {
 
   );
 
+  /* Last Known Workspace — updated on every local save and after Synchronize */
+
   if (typeof window.NF_backup?.onLocalDataSaved === "function") {
     window.NF_backup.onLocalDataSaved();
   }
@@ -277,6 +287,8 @@ function saveProjects(...revisionProjectIds) {
 }
 
 function loadProjects() {
+
+  /* Restore Last Known Workspace — first paint before Supabase bootstrap */
 
   const saved = localStorage.getItem(
 

@@ -2,10 +2,16 @@
 
 ## 4.0.0-alpha.002
 
-GitHub Pages fix
+Volvo Trunk — operator-controlled synchronization
 
-- Load `config.local.js` optionally via sync XHR (404-safe on Pages)
-- Add `.nojekyll` for static PWA deploy
+- Add `synchro.js` — Synchro Gate / Volvo Trunk queue (inbound + outbound)
+- Realtime and bootstrap enqueue only; no direct UI updates from remote events
+- Footer: pending count + Synchronize button; lightweight details panel
+- Save As duplicates locally and queues outbound INSERT (no immediate upload)
+- Moose cleanup queues outbound DELETE for synced projects
+- Supabase UPDATE/DELETE outbound support
+- Last Known Workspace terminology (`localStorage nfProjects`)
+- Design principles documented in `DESIGN-PRINCIPLES.md`
 
 ## 4.0.0-alpha.001
 

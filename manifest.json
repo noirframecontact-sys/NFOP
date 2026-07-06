@@ -1,7 +1,7 @@
 {
   "name": "NOIRFRAME PAD",
   "short_name": "NF PAD",
-  "description": "NOIRFRAME Operator — 4.0.0-alpha.001 ONLINE FOUNDATION",
+  "description": "NOIRFRAME Operator — 4.0.0-alpha.002 ONLINE FOUNDATION",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

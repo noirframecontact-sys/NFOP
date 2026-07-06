@@ -1,12 +1,12 @@
 "use strict";
 
 /*
-  NFOP 4.0 Phase 1 — Supabase sync layer.
-  Supabase = source of truth (normalized project columns).
-  localStorage = offline working cache.
+  NFOP 4.0 Phase 1.2 — Supabase transport layer.
+  Supabase = source of truth for synced columns (on operator Synchronize).
+  localStorage nfProjects = Last Known Workspace (immediate render, not source of truth).
 
-  STATUS: Schema review in progress — see supabase/SCHEMA-REVIEW.md
-  Do not apply schema or enable production sync until approved.
+  Remote events enqueue to Volvo Trunk (synchro.js) — no direct UI updates.
+  Realtime synchronizes data. The operator controls the workspace.
 */
 
 const NF_SYNC_QUEUE_KEY = "nfSyncQueue";
@@ -289,36 +289,26 @@ function nfPersistLocalCache() {
 
 }
 
-function nfMergeRemoteProject(row, options) {
+function nfEnqueueRemoteChange(type, row, source) {
 
-  const opts = options || {};
-  const hydrated = nfHydrateRemoteProject(row);
-  const index = state.projects.findIndex(
-    project => project.id === hydrated.id
+  if (!row?.id) {
+    return;
+  }
+
+  const decision = window.NF_synchro?.shouldEnqueueInbound?.(type, row);
+
+  if (decision && decision.enqueue === false) {
+    return;
+  }
+
+  const resolvedType = decision?.type || type;
+
+  window.NF_synchro?.enqueueInbound?.(
+    resolvedType,
+    row.id,
+    row,
+    source || "remote"
   );
-
-  if (index === -1) {
-    state.projects.unshift(hydrated);
-  } else {
-    state.projects[index] = Object.assign(
-      {},
-      state.projects[index],
-      hydrated
-    );
-  }
-
-  nfPersistLocalCache();
-
-  if (!opts.silent && typeof renderProjects === "function") {
-    renderProjects();
-  }
-
-  if (opts.emitEvent !== false) {
-    window.NF_events?.emit?.(
-      window.NF_events?.TYPES?.NEW_PROJECT,
-      { projectId: hydrated.id, source: opts.source || "remote" }
-    );
-  }
 
 }
 
@@ -397,6 +387,65 @@ async function nfTestConnection() {
 
 }
 
+async function nfUpdateProject(project) {
+
+  if (!nfSyncState.client || !project?.id) {
+    return { ok: false, reason: "not-ready" };
+  }
+
+  const operatorId = nfGetDeviceOperatorId();
+  const row = nfProjectToRow(project, operatorId);
+
+  const { error } = await nfSyncState.client
+    .from("projects")
+    .update({
+      project_number: row.project_number,
+      title: row.title,
+      client_name: row.client_name,
+      phone: row.phone,
+      email: row.email,
+      event_type: row.event_type,
+      event_date: row.event_date,
+      event_location: row.event_location,
+      package: row.package,
+      notes: row.notes,
+      status: row.status,
+      updated_at: row.updated_at,
+      updated_by: row.updated_by
+    })
+    .eq("id", project.id);
+
+  if (error) {
+    throw error;
+  }
+
+  return { ok: true, reason: "updated" };
+
+}
+
+async function nfDeleteProject(projectId) {
+
+  if (!nfSyncState.client || !projectId) {
+    return { ok: false, reason: "not-ready" };
+  }
+
+  const { error } = await nfSyncState.client
+    .from("projects")
+    .delete()
+    .eq("id", projectId);
+
+  if (error) {
+    throw error;
+  }
+
+  const syncedIds = nfLoadSyncedProjectIds();
+  syncedIds.delete(projectId);
+  nfSaveSyncedProjectIds(syncedIds);
+
+  return { ok: true, reason: "deleted" };
+
+}
+
 async function nfInsertProject(project) {
 
   if (!nfSyncState.client || !project?.id) {
@@ -461,56 +510,32 @@ async function nfFetchProjects() {
 async function nfBootstrapFromRemote() {
 
   const rows = await nfFetchProjects();
-  const syncedIds = nfLoadSyncedProjectIds();
 
-  rows.forEach(row => {
-    nfMergeRemoteProject(row, {
-      silent: true,
-      emitEvent: false
-    });
-    syncedIds.add(row.id);
-  });
-
-  nfSaveSyncedProjectIds(syncedIds);
-
-  if (typeof renderProjects === "function") {
-    renderProjects();
-  }
+  window.NF_synchro?.compareRemoteAndEnqueue?.(
+    rows,
+    "bootstrap"
+  );
 
 }
 
-function nfQueueProjectInsert(projectId) {
+function nfQueueOutboundChange(type, projectId) {
 
-  if (!projectId) {
-    return;
-  }
-
-  const queue = nfLoadSyncQueue();
-
-  if (queue.some(entry => entry.type === "INSERT" && entry.projectId === projectId)) {
-    return;
-  }
-
-  queue.push({
-    type: "INSERT",
-    projectId,
-    queuedAt: new Date().toISOString()
-  });
-
-  nfSaveSyncQueue(queue);
+  window.NF_synchro?.enqueueOutbound?.(type, projectId);
 
 }
 
-async function nfFlushSyncQueue() {
+async function nfFlushSyncQueue(options) {
+
+  const opts = options || {};
 
   if (!nfIsOnline() || !nfSyncState.client) {
-    return;
+    return { ok: false, reason: "offline" };
   }
 
   const queue = nfLoadSyncQueue();
 
   if (!queue.length) {
-    return;
+    return { ok: true, reason: "empty" };
   }
 
   const remaining = [];
@@ -519,7 +544,7 @@ async function nfFlushSyncQueue() {
 
     const entry = queue[index];
 
-    if (entry.type !== "INSERT") {
+    if (entry.type === "DELETE" && opts.skipDelete) {
       remaining.push(entry);
       continue;
     }
@@ -528,12 +553,32 @@ async function nfFlushSyncQueue() {
       item => item.id === entry.projectId
     );
 
-    if (!project) {
-      continue;
-    }
-
     try {
-      await nfInsertProject(project);
+
+      if (entry.type === "INSERT") {
+
+        if (!project) {
+          continue;
+        }
+
+        await nfInsertProject(project);
+
+      } else if (entry.type === "UPDATE") {
+
+        if (!project) {
+          continue;
+        }
+
+        await nfUpdateProject(project);
+
+      } else if (entry.type === "DELETE") {
+
+        await nfDeleteProject(entry.projectId);
+
+      } else {
+        remaining.push(entry);
+      }
+
     } catch (error) {
       console.error("[NF_sync] queue flush failed", entry, error);
       remaining.push(entry);
@@ -542,6 +587,8 @@ async function nfFlushSyncQueue() {
   }
 
   nfSaveSyncQueue(remaining);
+
+  return { ok: true };
 
 }
 
@@ -562,9 +609,11 @@ function nfSubscribeRealtime() {
       },
       payload => {
         if (payload?.new) {
-          nfMergeRemoteProject(payload.new, {
-            source: "realtime-insert"
-          });
+          nfEnqueueRemoteChange(
+            "NEW_PROJECT",
+            payload.new,
+            "realtime-insert"
+          );
         }
       }
     )
@@ -577,10 +626,28 @@ function nfSubscribeRealtime() {
       },
       payload => {
         if (payload?.new) {
-          nfMergeRemoteProject(payload.new, {
-            source: "realtime-update",
-            emitEvent: false
-          });
+          nfEnqueueRemoteChange(
+            "UPDATE_PROJECT",
+            payload.new,
+            "realtime-update"
+          );
+        }
+      }
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "DELETE",
+        schema: "public",
+        table: "projects"
+      },
+      payload => {
+        if (payload?.old) {
+          nfEnqueueRemoteChange(
+            "DELETE_PROJECT",
+            payload.old,
+            "realtime-delete"
+          );
         }
       }
     )
@@ -603,31 +670,16 @@ async function nfSchedulePersist(projectIds) {
   for (let index = 0; index < ids.length; index++) {
 
     const projectId = ids[index];
-
-    if (syncedIds.has(projectId)) {
-      continue;
-    }
-
     const project = state.projects.find(item => item.id === projectId);
 
     if (!project) {
       continue;
     }
 
-    if (!nfIsOnline()) {
-      nfQueueProjectInsert(projectId);
-      continue;
-    }
-
-    try {
-      await nfInsertProject(project);
-    } catch (error) {
-      console.error("[NF_sync] insert failed", projectId, error);
-      nfQueueProjectInsert(projectId);
-      nfSetConnectionState({
-        supabaseReachable: false,
-        lastConnectionError: error.message || String(error)
-      });
+    if (syncedIds.has(projectId)) {
+      nfQueueOutboundChange("UPDATE", projectId);
+    } else {
+      nfQueueOutboundChange("INSERT", projectId);
     }
 
   }
@@ -636,13 +688,7 @@ async function nfSchedulePersist(projectIds) {
 
 async function nfHandleConnectivityRestored() {
 
-  const ok = await nfTestConnection();
-
-  if (!ok) {
-    return;
-  }
-
-  await nfFlushSyncQueue();
+  await nfTestConnection();
 
 }
 
@@ -713,17 +759,7 @@ async function nfInitSupabaseSync() {
     try {
       await nfBootstrapFromRemote();
       nfSubscribeRealtime();
-
-      const syncedIds = nfLoadSyncedProjectIds();
-      const unsyncedIds = state.projects
-        .map(project => project.id)
-        .filter(projectId => !syncedIds.has(projectId));
-
-      if (unsyncedIds.length) {
-        await nfSchedulePersist(unsyncedIds);
-      }
-
-      await nfFlushSyncQueue();
+      window.NF_synchro?.refreshFooter?.();
     } catch (error) {
       console.error("[NF_sync] bootstrap failed", error);
       nfSetConnectionState({
@@ -741,10 +777,14 @@ window.NF_sync = {
   init: nfInitSupabaseSync,
   testConnection: nfTestConnection,
   schedulePersist: nfSchedulePersist,
+  flushOutboundQueue: nfFlushSyncQueue,
   getConnectionStatus: nfGetConnectionStatus,
   isOnline: nfIsOnline,
   projectToRow: nfProjectToRow,
   rowToProjectPatch: nfRowToProjectPatch,
+  hydrateRemoteProject: nfHydrateRemoteProject,
   extractPackageSummary: nfExtractPackageSummary,
-  resolveEventLocation: nfResolveEventLocation
+  resolveEventLocation: nfResolveEventLocation,
+  loadSyncedProjectIds: nfLoadSyncedProjectIds,
+  saveSyncedProjectIds: nfSaveSyncedProjectIds
 };

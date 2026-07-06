@@ -1914,6 +1914,92 @@ button:hover {
 
 }
 
+.nfSyncBar {
+
+  margin: 10px 0 0;
+
+  display: flex;
+
+  flex-wrap: wrap;
+
+  gap: 8px;
+
+  justify-content: center;
+
+  align-items: center;
+
+}
+
+.nfSyncPendingCount,
+.nfSynchronizeBtn {
+
+  font: inherit;
+
+  font-size: 11px;
+
+  letter-spacing: 0.04em;
+
+  padding: 4px 10px;
+
+  border: 1px solid var(--nf-frame);
+
+  border-radius: 4px;
+
+  background: var(--nf-surface);
+
+  color: var(--nf-text);
+
+  cursor: pointer;
+
+}
+
+.nfSyncPendingCount:disabled,
+.nfSynchronizeBtn:disabled {
+
+  opacity: 0.45;
+
+  cursor: not-allowed;
+
+}
+
+.nfSynchroDetailsModal {
+
+  max-width: 360px;
+
+  text-align: left;
+
+}
+
+.nfSynchroDetailsHeading {
+
+  margin: 12px 0 6px;
+
+  font-size: 12px;
+
+}
+
+.nfSynchroDetailsList {
+
+  margin: 0;
+
+  padding-left: 18px;
+
+  font-size: 12px;
+
+  line-height: 1.6;
+
+}
+
+.nfSynchroDetailsEmpty {
+
+  margin: 0;
+
+  font-size: 12px;
+
+  color: var(--nf-muted);
+
+}
+
 #serviceTrigger {
 
   cursor: pointer;

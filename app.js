@@ -132,7 +132,7 @@ function renderFooter() {
 
   const isDark = getStoredTheme() === "dark";
 
-  const appVersion = window.NF_CONFIG?.app?.version || "4.0.0-alpha.001";
+  const appVersion = window.NF_CONFIG?.app?.version || "4.0.0-alpha.002";
   const appPhase = window.NF_CONFIG?.app?.phase || "ONLINE FOUNDATION";
   const connection = window.NF_sync?.getConnectionStatus?.() || {};
   const supabaseConfigured = connection.configured !== false;
@@ -143,6 +143,7 @@ function renderFooter() {
     : isOnline
       ? "Supabase Connected"
       : "Supabase Offline";
+  const pendingCount = window.NF_synchro?.getPendingCount?.() || 0;
 
   footer.innerHTML = `
 
@@ -191,6 +192,21 @@ function renderFooter() {
         ${statusLabel}
       </p>
 
+      <p class="nfSyncBar">
+        <button
+          type="button"
+          id="nfSyncPendingCount"
+          class="nfSyncPendingCount"
+          title="Ausstehende Sync-Änderungen anzeigen"
+        >📦 ${pendingCount} pending</button>
+        <button
+          type="button"
+          id="nfSynchronizeBtn"
+          class="nfSynchronizeBtn"
+          ${pendingCount === 0 ? "disabled" : ""}
+        >Synchronize</button>
+      </p>
+
     </div>
 
   `;
@@ -203,6 +219,7 @@ function setupFooterInteractions() {
 
   setupThemeToggle();
   setupServiceMode();
+  window.NF_synchro?.setupFooterInteractions?.();
 
 }
 
@@ -2193,6 +2210,15 @@ window.NF_getProjects = function() {
   return state.projects;
 };
 
+window.NF_getActiveProjectId = function() {
+  return (
+    editingProjectId ||
+    editingNotesProjectId ||
+    editingDateProjectId ||
+    null
+  );
+};
+
 function editAddress(projectId) {
 
   const project = state.projects.find(
@@ -3346,6 +3372,15 @@ function mooseCleanupDraftProjects() {
     return;
   }
 
+  const deletedIds = deletable.map(project => project.id);
+  const syncedIds = window.NF_sync?.loadSyncedProjectIds?.() || new Set();
+
+  deletedIds.forEach(projectId => {
+    if (syncedIds.has(projectId)) {
+      window.NF_synchro?.enqueueOutbound?.("DELETE", projectId);
+    }
+  });
+
   cleanupProjects();
 
   saveProjects();
@@ -3353,6 +3388,8 @@ function mooseCleanupDraftProjects() {
   renderProjects();
 
   updateMooseModeStatus();
+
+  window.NF_synchro?.refreshFooter?.();
 
 }
 
