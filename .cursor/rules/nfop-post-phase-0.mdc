@@ -1,0 +1,81 @@
+---
+description: NFOP 4.0 baseline after Phase 0 — do not recreate prior work
+alwaysApply: true
+---
+
+# NFOP 4.0 — Context Update (Post Phase 0)
+
+**IMPORTANT:** Read-only summary of current project state. Do not recreate previous work. Continue from the current production baseline.
+
+## Current architecture
+
+| Role | Location |
+|------|----------|
+| Canonical GitHub repo | `noirframecontact-sys/NFOP` |
+| Canonical local copy | `C:\Users\marcin\Documents\GitHub\NFOP` |
+
+This is the **only source of truth**.
+
+Legacy folders under `Desktop\nrop baza\` are **backups only** — not production.
+
+## Deployment
+
+**GitHub Pages is deprecated.**
+
+Production: https://cute-zabaione-6f7b53.netlify.app
+
+Pipeline:
+
+```
+Cursor → Git commit → GitHub (NFOP, main) → Netlify auto deploy
+```
+
+No manual uploads. Netlify is linked to `noirframecontact-sys/NFOP` branch `main` with continuous deployment enabled.
+
+## Current application version
+
+- Version: `4.0.0-alpha.001`
+- Phase: `ONLINE FOUNDATION`
+- Version source: `config.js` only
+
+Footer displays: Version, Phase, online status, Supabase status.
+
+Supabase project exists; schema installed; Realtime enabled. App reports **🟢 Online**. Connection working.
+
+**Never** expose or modify credentials. **Never** commit `config.local.js`.
+
+## Repository status (completed — do not redo)
+
+- Phase 0: repository consolidation ✓
+- Git history clean ✓
+- Netlify connected ✓
+- GitHub connected ✓
+- Production working ✓
+
+**No rollback. No recreation. No migration.**
+
+## Development rules
+
+- Do not change existing UI unless requested
+- Preserve compatibility with existing projects
+- Keep versioning in `config.js`
+- Significant features increment: `alpha.xxx` → `beta.xxx` → release
+
+## Roadmap priority
+
+1. **Phase 1:** Supabase sync, Realtime multi-device, offline queue, conflict handling
+2. **Phase 2:** Project sync, tasks, notes, catalog, operator workflow
+3. **Phase 3:** Authentication, permissions, operator roles
+4. **Future:** Dashboard widgets, statistics, calendar, manager tools, embedded chess module
+
+## Chess module — DO NOT implement now
+
+Approved future feature only: unlimited duration, two players, moves may wait days/months, persistent storage, dashboard integration, no time control, internal NFOP only.
+
+## Next task (when requested)
+
+1. Verify automatic deployment pipeline (Netlify)
+2. Bump version to `4.0.0-alpha.002`, commit, push, verify Netlify deploy
+3. Only after successful deploy: continue Supabase synchronization work
+
+Do **not** re-consolidate repositories or revert to GitHub Pages.
