@@ -9,7 +9,7 @@ window.NF_CONFIG = {
   },
 
   supabase: {
-    url: "",
+    url: "https://mcppojmghmwwvubyrufo.supabase.co",
     anonKey: ""
   },
 
@@ -126,13 +126,16 @@ const NF_WEBSITE_URL = window.NF_CONFIG.website.url;
 
 window.NF_CONFIG_LOCAL = window.NF_CONFIG_LOCAL || {};
 
-(function nfLoadLocalConfig() {
+function nfLoadOptionalConfig(filename) {
   try {
     const xhr = new XMLHttpRequest();
-    xhr.open("GET", "config.local.js", false);
+    xhr.open("GET", filename, false);
     xhr.send(null);
     if (xhr.status === 200 && xhr.responseText.trim()) {
       Function(xhr.responseText)();
     }
   } catch (error) {}
-})();
+}
+
+nfLoadOptionalConfig("config.local.js");
+nfLoadOptionalConfig("config.production.js");
