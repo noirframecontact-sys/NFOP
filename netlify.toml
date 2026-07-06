@@ -4,5 +4,3 @@
 
 [build.environment]
   NODE_VERSION = "20"
-  NF_SUPABASE_URL = "${NF_SUPABASE_URL}"
-  NF_SUPABASE_ANON_KEY = "${NF_SUPABASE_ANON_KEY}"
