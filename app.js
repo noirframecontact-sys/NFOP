@@ -387,6 +387,24 @@ function getStoredTheme() {
 
 }
 
+function setupCalendarRealtimeRefresh() {
+
+  const refreshOpenCalendars = () => {
+    renderProjects();
+  };
+
+  window.NF_events?.on?.(
+    window.NF_events?.TYPES?.CALENDAR_CHANGED,
+    refreshOpenCalendars
+  );
+
+  window.NF_events?.on?.(
+    window.NF_events?.TYPES?.CALENDAR_BLOCK_CHANGED,
+    refreshOpenCalendars
+  );
+
+}
+
 function init() {
 
   loadProjects();
@@ -416,6 +434,8 @@ function init() {
   window.NF_supervisorCal?.setup?.();
 
   window.NF_operatorTerminCal?.setup?.();
+
+  setupCalendarRealtimeRefresh();
 
   window.NF_backup?.setup?.();
 
@@ -2022,7 +2042,7 @@ function clearEventDateFromProject() {
     termin.done = false;
   }
 
-  saveProjects(editingDateProjectId);
+  saveProjects(editingDateProjectId, { calendarLane: editingDateProjectId });
 
   renderProjects();
 
@@ -2079,7 +2099,7 @@ function saveEventDate() {
 
     state.projects.unshift(project);
 
-    saveProjects(project.id);
+    saveProjects(project.id, { calendarLane: project.id });
 
     renderProjects();
 
@@ -2143,7 +2163,7 @@ function saveEventDate() {
     termin.done = true;
   }
 
-  saveProjects(editingDateProjectId);
+  saveProjects(editingDateProjectId, { calendarLane: editingDateProjectId });
 
   renderProjects();
 

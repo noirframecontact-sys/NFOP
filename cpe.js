@@ -310,6 +310,10 @@ function normalizeBlockedDayEntries(raw) {
 }
 
 function getBlockedDayEntries() {
+  if (window.NF_calendarStore?.getBlockEntries) {
+    return window.NF_calendarStore.getBlockEntries();
+  }
+
   try {
     const saved = localStorage.getItem(NF_BLOCKED_DAYS_KEY);
 
@@ -349,6 +353,11 @@ function setBlockedDay(day, reason) {
     return { ok: false, message: "Ungültiges Datum." };
   }
 
+  if (window.NF_calendarStore?.blockDay) {
+    window.NF_calendarStore.blockDay(normalizedDay, reason);
+    return { ok: true, day: normalizedDay };
+  }
+
   const entries = getBlockedDayEntries().filter(
     entry => entry.day !== normalizedDay
   );
@@ -369,6 +378,11 @@ function removeBlockedDay(day) {
 
   if (!normalizedDay) {
     return { ok: false, message: "Ungültiges Datum." };
+  }
+
+  if (window.NF_calendarStore?.unblockDay) {
+    window.NF_calendarStore.unblockDay(normalizedDay);
+    return { ok: true, day: normalizedDay };
   }
 
   saveBlockedDayEntries(

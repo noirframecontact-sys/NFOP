@@ -566,6 +566,24 @@ function resetOperatorTerminCalendar() {
 
 function setupOperatorTerminCalendar() {
 
+  const refreshIfOpen = () => {
+    const modal = document.getElementById("dateModal");
+
+    if (modal && !modal.classList.contains("hidden")) {
+      renderOperatorTerminCalendar(operatorTerminCalState.projectId);
+    }
+  };
+
+  window.NF_events?.on?.(
+    window.NF_events?.TYPES?.CALENDAR_BLOCK_CHANGED,
+    refreshIfOpen
+  );
+
+  window.NF_events?.on?.(
+    window.NF_events?.TYPES?.CALENDAR_CHANGED,
+    refreshIfOpen
+  );
+
   document
 
     .getElementById("operatorTerminCalPrev")

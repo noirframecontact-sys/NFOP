@@ -11,7 +11,7 @@
 */
 window.NF_CONFIG_LOCAL = {
   supabase: {
-    url: "https://YOUR_PROJECT_REF.supabase.co",
-    anonKey: "YOUR_SUPABASE_ANON_KEY"
+    url: "https://mcppojmghmwwvubyrufo.supabase.co",
+    anonKey: "sb_publishable_qsyn5QofnR1G9J2-hLHshg_xxTObp9v"
   }
 };

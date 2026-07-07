@@ -3,9 +3,9 @@
 window.NF_CONFIG = {
 
   app: {
-    version: "4.0.0-alpha.003",
-    phase: "ONLINE FOUNDATION",
-    build: "4.0.0-alpha.003"
+    version: "4.1.0-alpha.001",
+    phase: "4.1 SHARED CALENDAR",
+    build: "4.1.0-alpha.001"
   },
 
   supabase: {

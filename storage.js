@@ -254,7 +254,21 @@ function bumpProjectRevision(project) {
 
 }
 
-function saveProjects(...revisionProjectIds) {
+function saveProjects(...args) {
+
+  let revisionProjectIds = args;
+  let persistOptions = null;
+  const lastArg = args[args.length - 1];
+
+  if (
+    lastArg &&
+    typeof lastArg === "object" &&
+    !Array.isArray(lastArg) &&
+    Object.prototype.hasOwnProperty.call(lastArg, "calendarLane")
+  ) {
+    persistOptions = lastArg;
+    revisionProjectIds = args.slice(0, -1);
+  }
 
   revisionProjectIds.forEach(projectId => {
     if (!projectId) {
@@ -281,7 +295,7 @@ function saveProjects(...revisionProjectIds) {
   }
 
   if (typeof window.NF_sync?.schedulePersist === "function") {
-    window.NF_sync.schedulePersist(revisionProjectIds);
+    window.NF_sync.schedulePersist(revisionProjectIds, persistOptions || undefined);
   }
 
 }

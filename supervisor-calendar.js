@@ -3,7 +3,7 @@
 /*
 =========================================
 NOIRFRAME — Supervisor Kalender
-Private Tagessperren (nfBlockedDays)
+Shared blocks via Supabase (nfBlockedDays cache)
 =========================================
 */
 
@@ -398,6 +398,24 @@ function supervisorCalUnblockSelectedDay() {
 
 function setupSupervisorCalendar() {
   // Hero-Button: setupHeroBarActions() in app.js (delegacja na #hero)
+
+  const refreshIfOpen = () => {
+    const modal = document.getElementById("supervisorCalendarModal");
+
+    if (modal && !modal.classList.contains("hidden")) {
+      supervisorCalRender();
+    }
+  };
+
+  window.NF_events?.on?.(
+    window.NF_events?.TYPES?.CALENDAR_BLOCK_CHANGED,
+    refreshIfOpen
+  );
+
+  window.NF_events?.on?.(
+    window.NF_events?.TYPES?.CALENDAR_CHANGED,
+    refreshIfOpen
+  );
 
   document
     .getElementById("closeSupervisorCalBtn")

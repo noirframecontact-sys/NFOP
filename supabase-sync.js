@@ -1,12 +1,11 @@
 "use strict";
 
 /*
-  NFOP 4.0 Phase 1.2 — Supabase transport layer.
-  Supabase = source of truth for synced columns (on operator Synchronize).
-  localStorage nfProjects = Last Known Workspace (immediate render, not source of truth).
+  NFOP 4.1 — Supabase transport layer.
 
-  Remote events enqueue to Volvo Trunk (synchro.js) — no direct UI updates.
-  Realtime synchronizes data. The operator controls the workspace.
+  Projects: Volvo Trunk for non-calendar fields; Calendar Lane auto-applies event_date.
+  Supervisor blocks: Calendar Lane auto-apply (no Volvo Trunk).
+  localStorage nfProjects / nfBlockedDays = Last Known Workspace.
 */
 
 const NF_SYNC_QUEUE_KEY = "nfSyncQueue";
@@ -16,12 +15,14 @@ const NF_DEVICE_ID_KEY = "nfDeviceId";
 const nfSyncState = {
   client: null,
   channel: null,
+  blocksChannel: null,
   configured: false,
   supabaseReachable: false,
   browserOnline: navigator.onLine !== false,
   lastConnectionTestAt: null,
   lastConnectionError: null,
-  bootstrapped: false
+  bootstrapped: false,
+  calendarLaneEnabled: true
 };
 
 function nfGetMergedConfig() {
@@ -279,9 +280,174 @@ function nfMigrateProjectRecord(project) {
 
 }
 
+function nfEmitCalendarChanged(payload) {
+
+  window.NF_events?.emit?.(
+    window.NF_events?.TYPES?.CALENDAR_CHANGED,
+    payload || {}
+  );
+
+}
+
+function nfSaveProjectsSnapshot() {
+
+  if (typeof state === "undefined" || !Array.isArray(state.projects)) {
+    return;
+  }
+
+  try {
+    localStorage.setItem(
+      "nfProjects",
+      JSON.stringify(state.projects)
+    );
+  } catch (error) {}
+
+}
+
+function nfCalendarLaneOnlyDiffers(row, localProject) {
+
+  if (!localProject || !row) {
+    return false;
+  }
+
+  const patch = nfRowToProjectPatch(row);
+
+  if (!patch) {
+    return false;
+  }
+
+  const remoteDate = String(patch.date ?? "").trim();
+  const localDate = String(localProject.date ?? "").trim();
+
+  if (remoteDate === localDate) {
+    return false;
+  }
+
+  const scalarFields = [
+    ["number", "project_number"],
+    ["title", "title"],
+    ["client", "client_name"],
+    ["phone", "phone"],
+    ["email", "email"],
+    ["eventType", "event_type"],
+    ["notes", "notes"],
+    ["status", "status"]
+  ];
+
+  for (let index = 0; index < scalarFields.length; index += 1) {
+
+    const localKey = scalarFields[index][0];
+    const remoteKey = scalarFields[index][1];
+    const localValue = String(localProject[localKey] ?? "").trim();
+    const remoteValue = String(row[remoteKey] ?? patch[localKey] ?? "").trim();
+
+    if (localValue !== remoteValue) {
+      return false;
+    }
+
+  }
+
+  const localLocation = nfResolveEventLocation(localProject);
+  const remoteLocation = String(row.event_location || "").trim();
+
+  if (localLocation !== remoteLocation) {
+    return false;
+  }
+
+  return true;
+
+}
+
+function nfApplyCalendarLaneDate(row, source) {
+
+  if (!nfSyncState.calendarLaneEnabled || !row?.id) {
+    return false;
+  }
+
+  const remoteDate = nfNormalizeEventDate(row.event_date) || "";
+  const localProject = typeof state !== "undefined"
+    ? state.projects.find(project => project.id === row.id)
+    : null;
+
+  if (!localProject) {
+
+    if (!remoteDate) {
+      return false;
+    }
+
+    const hydrated = nfHydrateRemoteProject(row);
+
+    if (typeof state !== "undefined") {
+      state.projects.unshift(hydrated);
+      nfSaveProjectsSnapshot();
+
+      const syncedIds = nfLoadSyncedProjectIds();
+      syncedIds.add(row.id);
+      nfSaveSyncedProjectIds(syncedIds);
+    }
+
+    nfEmitCalendarChanged({
+      projectId: row.id,
+      date: remoteDate,
+      source: source || "calendar-lane-insert"
+    });
+
+    return true;
+
+  }
+
+  const localDate = String(localProject.date ?? "").trim();
+
+  if (localDate === remoteDate) {
+    return false;
+  }
+
+  localProject.date = remoteDate;
+  nfSaveProjectsSnapshot();
+
+  nfEmitCalendarChanged({
+    projectId: row.id,
+    date: remoteDate,
+    source: source || "calendar-lane-update"
+  });
+
+  return true;
+
+}
+
+function nfIsCalendarLaneInbound(type, row) {
+
+  if (!nfSyncState.calendarLaneEnabled || !row?.id) {
+    return false;
+  }
+
+  const localProject = typeof state !== "undefined"
+    ? state.projects.find(project => project.id === row.id)
+    : null;
+
+  if (type === "NEW_PROJECT" || type === "UPDATE_PROJECT") {
+
+    if (!localProject) {
+      return Boolean(nfNormalizeEventDate(row.event_date));
+    }
+
+    return nfCalendarLaneOnlyDiffers(row, localProject);
+
+  }
+
+  return false;
+
+}
+
 function nfEnqueueRemoteChange(type, row, source) {
 
   if (!row?.id) {
+    return;
+  }
+
+  nfApplyCalendarLaneDate(row, source);
+
+  if (nfIsCalendarLaneInbound(type, row)) {
     return;
   }
 
@@ -299,6 +465,191 @@ function nfEnqueueRemoteChange(type, row, source) {
     row,
     source || "remote"
   );
+
+}
+
+async function nfFetchSupervisorBlocks() {
+
+  if (!nfSyncState.client) {
+    return [];
+  }
+
+  const { data, error } = await nfSyncState.client
+    .from("supervisor_blocks")
+    .select("*")
+    .order("block_day", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return Array.isArray(data) ? data : [];
+
+}
+
+async function nfBootstrapBlocksFromRemote() {
+
+  const rows = await nfFetchSupervisorBlocks();
+
+  window.NF_calendarStore?.replaceCacheFromRemote?.(rows);
+
+}
+
+async function nfUpsertSupervisorBlock(blockDay, reason) {
+
+  if (!nfSyncState.client || !blockDay) {
+    return { ok: false, reason: "not-ready" };
+  }
+
+  const operatorId = nfGetDeviceOperatorId();
+  const normalizedDay = String(blockDay).trim();
+  const normalizedReason =
+    String(reason || "Privat").trim() || "Privat";
+
+  const { error } = await nfSyncState.client
+    .from("supervisor_blocks")
+    .upsert({
+      block_day: normalizedDay,
+      reason: normalizedReason,
+      updated_by: operatorId,
+      created_by: operatorId
+    }, {
+      onConflict: "block_day"
+    });
+
+  if (error) {
+    throw error;
+  }
+
+  return { ok: true, reason: "upserted" };
+
+}
+
+async function nfDeleteSupervisorBlock(blockDay) {
+
+  if (!nfSyncState.client || !blockDay) {
+    return { ok: false, reason: "not-ready" };
+  }
+
+  const { error } = await nfSyncState.client
+    .from("supervisor_blocks")
+    .delete()
+    .eq("block_day", String(blockDay).trim());
+
+  if (error) {
+    throw error;
+  }
+
+  return { ok: true, reason: "deleted" };
+
+}
+
+function nfApplySupervisorBlockRealtime(type, row) {
+
+  if (!row?.block_day) {
+    return;
+  }
+
+  if (type === "DELETE") {
+    window.NF_calendarStore?.applyRemoteDelete?.(row);
+    return;
+  }
+
+  window.NF_calendarStore?.applyRemoteUpsert?.(row);
+
+}
+
+async function nfPersistCalendarLane(project) {
+
+  if (!project?.id || !nfSyncState.calendarLaneEnabled) {
+    return { ok: false, reason: "not-ready" };
+  }
+
+  const syncedIds = nfLoadSyncedProjectIds();
+
+  if (!nfIsOnline() || !nfSyncState.client) {
+
+    if (syncedIds.has(project.id)) {
+      nfQueueOutboundChange("UPDATE", project.id);
+    } else {
+      nfQueueOutboundChange("INSERT", project.id);
+    }
+
+    return { ok: false, reason: "offline" };
+
+  }
+
+  try {
+
+    if (syncedIds.has(project.id)) {
+      return await nfUpdateProject(project);
+    }
+
+    return await nfInsertProject(project);
+
+  } catch (error) {
+    console.error("[NF_sync] calendar lane persist failed", error);
+
+    if (syncedIds.has(project.id)) {
+      nfQueueOutboundChange("UPDATE", project.id);
+    } else {
+      nfQueueOutboundChange("INSERT", project.id);
+    }
+
+    throw error;
+
+  }
+
+}
+
+function nfSubscribeBlocksRealtime() {
+
+  if (!nfSyncState.client || nfSyncState.blocksChannel) {
+    return;
+  }
+
+  nfSyncState.blocksChannel = nfSyncState.client
+    .channel("nfop-supervisor-blocks")
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "supervisor_blocks"
+      },
+      payload => {
+        if (payload?.new) {
+          nfApplySupervisorBlockRealtime("INSERT", payload.new);
+        }
+      }
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "supervisor_blocks"
+      },
+      payload => {
+        if (payload?.new) {
+          nfApplySupervisorBlockRealtime("UPDATE", payload.new);
+        }
+      }
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "DELETE",
+        schema: "public",
+        table: "supervisor_blocks"
+      },
+      payload => {
+        if (payload?.old) {
+          nfApplySupervisorBlockRealtime("DELETE", payload.old);
+        }
+      }
+    )
+    .subscribe();
 
 }
 
@@ -649,8 +1000,9 @@ function nfSubscribeRealtime() {
 
 }
 
-async function nfSchedulePersist(projectIds) {
+async function nfSchedulePersist(projectIds, options) {
 
+  const opts = options || {};
   const ids = Array.isArray(projectIds)
     ? projectIds.filter(Boolean)
     : [];
@@ -661,12 +1013,19 @@ async function nfSchedulePersist(projectIds) {
 
   const syncedIds = nfLoadSyncedProjectIds();
 
-  for (let index = 0; index < ids.length; index++) {
+  for (let index = 0; index < ids.length; index += 1) {
 
     const projectId = ids[index];
     const project = state.projects.find(item => item.id === projectId);
 
     if (!project) {
+      continue;
+    }
+
+    if (opts.calendarLane && nfSyncState.calendarLaneEnabled) {
+      nfPersistCalendarLane(project).catch(error => {
+        console.error("[NF_sync] calendar lane outbound failed", error);
+      });
       continue;
     }
 
@@ -690,6 +1049,9 @@ async function nfHandleConnectivityRestored() {
 
   try {
     await nfBootstrapFromRemote();
+    await window.NF_calendarStore?.init?.();
+    nfSubscribeRealtime();
+    nfSubscribeBlocksRealtime();
     window.NF_synchro?.refreshFooter?.();
   } catch (error) {
     console.error("[NF_sync] reconnect bootstrap failed", error);
@@ -767,7 +1129,9 @@ async function nfInitSupabaseSync() {
   if (connected) {
     try {
       await nfBootstrapFromRemote();
+      await window.NF_calendarStore?.init?.();
       nfSubscribeRealtime();
+      nfSubscribeBlocksRealtime();
       window.NF_synchro?.refreshFooter?.();
     } catch (error) {
       console.error("[NF_sync] bootstrap failed", error);
@@ -786,6 +1150,7 @@ window.NF_sync = {
   init: nfInitSupabaseSync,
   testConnection: nfTestConnection,
   schedulePersist: nfSchedulePersist,
+  persistCalendarLane: nfPersistCalendarLane,
   flushOutboundQueue: nfFlushSyncQueue,
   getConnectionStatus: nfGetConnectionStatus,
   isOnline: nfIsOnline,
@@ -795,5 +1160,11 @@ window.NF_sync = {
   extractPackageSummary: nfExtractPackageSummary,
   resolveEventLocation: nfResolveEventLocation,
   loadSyncedProjectIds: nfLoadSyncedProjectIds,
-  saveSyncedProjectIds: nfSaveSyncedProjectIds
+  saveSyncedProjectIds: nfSaveSyncedProjectIds,
+  fetchSupervisorBlocks: nfFetchSupervisorBlocks,
+  upsertSupervisorBlock: nfUpsertSupervisorBlock,
+  deleteSupervisorBlock: nfDeleteSupervisorBlock,
+  applyCalendarLaneDate: nfApplyCalendarLaneDate,
+  isCalendarLaneInbound: nfIsCalendarLaneInbound,
+  calendarLaneOnlyDiffers: nfCalendarLaneOnlyDiffers
 };

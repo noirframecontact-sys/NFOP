@@ -145,11 +145,18 @@ Tam, gdzie manifest 4.1 koliduje z `DESIGN-PRINCIPLES.md` (4.0), **obowiązuje m
 
 ## Kolejne kroki (po akceptacji manifestu)
 
-1. Analiza techniczna punktu 1 — wspólny kalendarz (model Supabase, Calendar Lane)
+1. ~~Analiza techniczna punktu 1 — wspólny kalendarz (model Supabase, Calendar Lane)~~ ✓ `4.1/calendar`
 2. Praca na **klonie lokalnym** + Live Server — nie na produkcji
-3. Implementacja fazowa — dopiero po akceptacji modelu danych
+3. Implementacja fazowa — `4.1-SETUP.md` dla testów dwóch urządzeń
 
 **Nie implementujemy wszystkiego naraz.**
+
+### 4.1/calendar (manifest 1–4)
+
+- `supervisor_blocks` w Supabase + Realtime
+- `calendar-store.js` — blokady BLUE, offline queue
+- Calendar Lane — `event_date` auto-apply (bez Volvo Trunk)
+- Setup: [`4.1-SETUP.md`](4.1-SETUP.md)
 
 ---
 

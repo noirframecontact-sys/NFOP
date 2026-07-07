@@ -180,6 +180,12 @@ function nfSynchroShouldEnqueueInbound(type, row) {
     return { enqueue: true, type };
   }
 
+  if (
+    window.NF_sync?.isCalendarLaneInbound?.(type, row)
+  ) {
+    return { enqueue: false, type };
+  }
+
   if (!local) {
     return {
       enqueue: true,
