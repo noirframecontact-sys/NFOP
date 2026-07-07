@@ -1579,31 +1579,21 @@ function getProjectById(projectId) {
 
   }
 
-  if (typeof state !== "undefined" && state.projects) {
+  if (typeof window.NF_getProjects === "function") {
 
-    const live = state.projects.find(
-      project => project.id === projectId
-    );
+    const projects = window.NF_getProjects() || [];
 
-    if (live) return live;
+    return projects.find(project => project.id === projectId) || null;
 
   }
 
-  try {
+  if (typeof state !== "undefined" && Array.isArray(state.projects)) {
 
-    const saved = localStorage.getItem("nfProjects");
-
-    if (!saved) return null;
-
-    return JSON.parse(saved).find(
-      project => project.id === projectId
-    ) || null;
-
-  } catch (error) {
-
-    return null;
+    return state.projects.find(project => project.id === projectId) || null;
 
   }
+
+  return null;
 
 }
 

@@ -1914,6 +1914,217 @@ button:hover {
 
 }
 
+#quickActions {
+
+  display: none;
+
+}
+
+.heroOnlineBtn {
+
+  cursor: default;
+
+  pointer-events: none;
+
+}
+
+.heroOnlineBtn--up .heroOnlineLamp {
+
+  color: #2f7a45;
+
+  filter: drop-shadow(0 0 4px rgba(47, 122, 69, 0.65));
+
+}
+
+.heroOnlineBtn--down .heroOnlineLamp {
+
+  color: #b33a3a;
+
+  filter: drop-shadow(0 0 4px rgba(179, 58, 58, 0.55));
+
+}
+
+.heroOnlineLamp,
+.heroPendingLamp,
+.heroSynchroLamp {
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  line-height: 1;
+
+}
+
+.heroOnlineLamp .nfDashSvg--online {
+
+  width: 18px;
+
+  height: 18px;
+
+}
+
+.heroPendingBtn,
+.heroSynchroBtn {
+
+  cursor: pointer;
+
+  font: inherit;
+
+  padding: 0;
+
+}
+
+.heroPendingLamp {
+
+  position: relative;
+
+}
+
+.heroPendingCount {
+
+  position: absolute;
+
+  right: 1px;
+
+  bottom: -1px;
+
+  min-width: 14px;
+
+  font-size: 10px;
+
+  font-weight: 700;
+
+  line-height: 1;
+
+  font-variant-numeric: tabular-nums;
+
+}
+
+.heroPendingBtn--active {
+
+  border-color: #b8860b;
+
+}
+
+.heroPendingBtn--active .heroPendingLamp {
+
+  filter: drop-shadow(0 0 3px rgba(184, 134, 11, 0.55));
+
+}
+
+.heroSynchroBtn {
+
+  width: auto;
+
+  min-width: 48px;
+
+  padding: 0 6px;
+
+}
+
+.heroSynchroBtn:disabled {
+
+  opacity: 0.45;
+
+  cursor: not-allowed;
+
+}
+
+.heroSynchroLamp {
+
+  flex-direction: column;
+
+  gap: 1px;
+
+  color: var(--nf-amber-glow);
+
+  filter: drop-shadow(0 0 3px var(--nf-amber));
+
+}
+
+.heroSynchroLabel {
+
+  font-size: 7px;
+
+  font-weight: 700;
+
+  letter-spacing: 0.08em;
+
+  line-height: 1;
+
+}
+
+.heroThemeBtn {
+
+  cursor: pointer;
+
+  font: inherit;
+
+  padding: 0;
+
+}
+
+.heroThemeLamp {
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  line-height: 1;
+
+}
+
+.heroThemeSvg {
+
+  width: 24px;
+
+  height: 24px;
+
+  display: block;
+
+}
+
+.heroThemeSvg--on {
+
+  color: var(--nf-amber-glow);
+
+  filter: drop-shadow(0 0 5px var(--nf-amber));
+
+}
+
+.heroThemeSvg--off {
+
+  color: var(--nf-muted);
+
+}
+
+.nfWebLink:active .heroThemeSvg--on {
+
+  filter: drop-shadow(0 0 2px var(--nf-amber));
+
+}
+
+.nfDashSvg--handbrake {
+
+  width: 22px;
+
+  height: 22px;
+
+}
+
+.nfDashSvg--4x4 {
+
+  width: 20px;
+
+  height: 20px;
+
+}
+
 .nfSyncBar {
 
   margin: 10px 0 0;

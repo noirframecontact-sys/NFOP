@@ -3,9 +3,9 @@
 window.NF_CONFIG = {
 
   app: {
-    version: "4.0.0-alpha.002",
+    version: "4.0.0-alpha.003",
     phase: "ONLINE FOUNDATION",
-    build: "4.0.0-alpha.002"
+    build: "4.0.0-alpha.003"
   },
 
   supabase: {

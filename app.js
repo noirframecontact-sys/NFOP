@@ -1,8 +1,33 @@
-﻿function renderHero() {
+﻿function nfHeroThemeIcon(isDark) {
+
+  const bulbPath =
+    "M12 2a5 5 0 0 0-3 9.1V14h6v-2.9A5 5 0 0 0 12 2zm-2 14h4v2h-4v-2z";
+
+  if (isDark) {
+    return (
+      "<svg class=\"heroThemeSvg heroThemeSvg--on\" viewBox=\"0 0 24 24\" aria-hidden=\"true\">" +
+      "<path fill=\"currentColor\" d=\"" + bulbPath + "\"/>" +
+      "</svg>"
+    );
+  }
+
+  return (
+    "<svg class=\"heroThemeSvg heroThemeSvg--off\" viewBox=\"0 0 24 24\" aria-hidden=\"true\">" +
+    "<path fill=\"currentColor\" d=\"" + bulbPath + "\" opacity=\"0.35\"/>" +
+    "<path fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" d=\"M5 5l14 14\"/>" +
+    "</svg>"
+  );
+
+}
+
+function renderHero() {
 
   const hero = document.getElementById("hero");
 
   if (!hero) return;
+
+  const isDark = getStoredTheme() === "dark";
+  const themeTitle = isDark ? "Dunkelmodus: AN" : "Dunkelmodus: AUS";
 
   const url =
     typeof NF_WEBSITE_URL === "string"
@@ -54,9 +79,22 @@
         <span class="heroNewInquiryLamp" aria-hidden="true">➕</span>
       </button>
 
+      ${nfHeroSyncControlsHtml()}
+
       </div>
 
       <div class="heroBarRight">
+
+      <button
+        type="button"
+        id="themeToggle"
+        class="nfWebLink heroThemeBtn"
+        title="${escapeHtml(themeTitle)}"
+        aria-label="${escapeHtml(themeTitle)}"
+        aria-pressed="${isDark ? "true" : "false"}"
+      >
+        <span class="heroThemeLamp" aria-hidden="true">${nfHeroThemeIcon(isDark)}</span>
+      </button>
 
       <button
         type="button"
@@ -73,6 +111,8 @@
     </div>
 
   `;
+
+  setupHeroSyncInteractions();
 
 }
 
@@ -116,9 +156,124 @@ function setupHeroBarActions() {
 
       window.NF_supervisorCal?.open?.();
 
+      return;
+
+    }
+
+    if (event.target.closest("#themeToggle")) {
+
+      event.preventDefault();
+
+      applyTheme(getStoredTheme() === "dark" ? "light" : "dark");
+
     }
 
   });
+
+}
+
+function nfDashboardIconOnline() {
+
+  return (
+    "<svg class=\"nfDashSvg nfDashSvg--online\" viewBox=\"0 0 24 24\" aria-hidden=\"true\">" +
+    "<circle cx=\"12\" cy=\"12\" r=\"9\" fill=\"currentColor\"/>" +
+    "</svg>"
+  );
+
+}
+
+function nfDashboardIconHandbrake() {
+
+  return (
+    "<svg class=\"nfDashSvg nfDashSvg--handbrake\" viewBox=\"0 0 24 24\" aria-hidden=\"true\">" +
+    "<circle cx=\"12\" cy=\"12\" r=\"9\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\"/>" +
+    "<path d=\"M8 15V9h2v4h1.5a2.5 2.5 0 1 1 0 2H8z\" fill=\"currentColor\"/>" +
+    "<path d=\"M14 8.5 16.5 11 14 13.5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>" +
+    "</svg>"
+  );
+
+}
+
+function nfDashboardIconFourByFour() {
+
+  return (
+    "<svg class=\"nfDashSvg nfDashSvg--4x4\" viewBox=\"0 0 24 24\" aria-hidden=\"true\">" +
+    "<rect x=\"10\" y=\"10\" width=\"4\" height=\"4\" rx=\"0.5\" fill=\"currentColor\"/>" +
+    "<circle cx=\"6\" cy=\"8\" r=\"2.25\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"/>" +
+    "<circle cx=\"18\" cy=\"8\" r=\"2.25\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"/>" +
+    "<circle cx=\"6\" cy=\"16\" r=\"2.25\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"/>" +
+    "<circle cx=\"18\" cy=\"16\" r=\"2.25\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"/>" +
+    "<path d=\"M8.25 8h3.5M12 10v3.5M15.75 8h-3.5M12 14v3.5M8.25 16h3.5M15.75 16h-3.5\" stroke=\"currentColor\" stroke-width=\"1.25\" stroke-linecap=\"round\"/>" +
+    "</svg>"
+  );
+
+}
+
+function nfHeroSyncControlsHtml() {
+
+  const connection = window.NF_sync?.getConnectionStatus?.() || {};
+  const supabaseConfigured = connection.configured !== false;
+  const isOnline = connection.online === true;
+  const pendingCount = window.NF_synchro?.getPendingCount?.() || 0;
+
+  const onlineTitle = !supabaseConfigured
+    ? "Supabase nicht konfiguriert"
+    : isOnline
+      ? "Online · Supabase verbunden"
+      : "Offline · Supabase nicht erreichbar";
+
+  return `
+
+      <span
+        id="nfDashboardOnline"
+        class="nfWebLink heroOnlineBtn ${isOnline ? "heroOnlineBtn--up" : "heroOnlineBtn--down"}"
+        title="${escapeHtml(onlineTitle)}"
+        aria-label="${escapeHtml(onlineTitle)}"
+        role="status"
+      >
+        <span class="heroOnlineLamp" aria-hidden="true">${nfDashboardIconOnline()}</span>
+      </span>
+
+      <button
+        type="button"
+        id="nfSyncPendingCount"
+        class="nfWebLink heroPendingBtn ${pendingCount > 0 ? "heroPendingBtn--active" : ""}"
+        title="Ausstehende Sync-Änderungen anzeigen"
+        aria-label="${pendingCount} ausstehende Änderungen"
+      >
+        <span class="heroPendingLamp" aria-hidden="true">
+          ${nfDashboardIconHandbrake()}
+          <span class="heroPendingCount">${pendingCount}</span>
+        </span>
+      </button>
+
+      <button
+        type="button"
+        id="nfSynchronizeBtn"
+        class="nfWebLink heroSynchroBtn"
+        title="Workspace synchronisieren"
+        aria-label="SYNCHRO"
+        ${pendingCount === 0 ? "disabled" : ""}
+      >
+        <span class="heroSynchroLamp" aria-hidden="true">
+          ${nfDashboardIconFourByFour()}
+          <span class="heroSynchroLabel">SYNCHRO</span>
+        </span>
+      </button>
+
+  `;
+
+}
+
+function renderDashboard() {
+
+  renderHero();
+
+}
+
+function setupHeroSyncInteractions() {
+
+  window.NF_synchro?.setupFooterInteractions?.();
 
 }
 
@@ -130,20 +285,8 @@ function renderFooter() {
 
   );
 
-  const isDark = getStoredTheme() === "dark";
-
   const appVersion = window.NF_CONFIG?.app?.version || "4.0.0-alpha.002";
   const appPhase = window.NF_CONFIG?.app?.phase || "ONLINE FOUNDATION";
-  const connection = window.NF_sync?.getConnectionStatus?.() || {};
-  const supabaseConfigured = connection.configured !== false;
-  const isOnline = connection.online === true;
-  const statusLabel = isOnline ? "🟢 Online" : "🔴 Offline";
-  const supabaseLabel = !supabaseConfigured
-    ? "Supabase Not Configured"
-    : isOnline
-      ? "Supabase Connected"
-      : "Supabase Offline";
-  const pendingCount = window.NF_synchro?.getPendingCount?.() || 0;
 
   footer.innerHTML = `
 
@@ -169,42 +312,10 @@ function renderFooter() {
 
       <br>
 
-      <button
-        type="button"
-        id="themeToggle"
-        class="themeToggle"
-      >
-        ${isDark ? "DUNKELMODUS: AN" : "DUNKELMODUS: AUS"}
-      </button>
-
       <p class="nfVersionMeta">
         NOIR FRAME Operator<br>
         Version ${appVersion}<br>
-        ${appPhase}<br>
-        ${supabaseLabel}
-      </p>
-
-      <p
-        id="nfConnectionStatus"
-        class="nfConnectionStatus ${isOnline ? "nfConnectionStatusOnline" : "nfConnectionStatusOffline"}"
-        aria-live="polite"
-      >
-        ${statusLabel}
-      </p>
-
-      <p class="nfSyncBar">
-        <button
-          type="button"
-          id="nfSyncPendingCount"
-          class="nfSyncPendingCount"
-          title="Ausstehende Sync-Änderungen anzeigen"
-        >📦 ${pendingCount} pending</button>
-        <button
-          type="button"
-          id="nfSynchronizeBtn"
-          class="nfSynchronizeBtn"
-          ${pendingCount === 0 ? "disabled" : ""}
-        >Synchronize</button>
+        ${appPhase}
       </p>
 
     </div>
@@ -217,9 +328,43 @@ function renderFooter() {
 
 function setupFooterInteractions() {
 
-  setupThemeToggle();
   setupServiceMode();
-  window.NF_synchro?.setupFooterInteractions?.();
+
+}
+
+function updateThemeToggleUi(resolved) {
+
+  const toggle = document.getElementById("themeToggle");
+  const lamp = toggle?.querySelector(".heroThemeLamp");
+  const isDark = resolved === "dark";
+  const themeTitle = isDark ? "Dunkelmodus: AN" : "Dunkelmodus: AUS";
+
+  if (lamp) {
+    lamp.innerHTML = nfHeroThemeIcon(isDark);
+  }
+
+  if (toggle) {
+    toggle.title = themeTitle;
+    toggle.setAttribute("aria-label", themeTitle);
+    toggle.setAttribute("aria-pressed", isDark ? "true" : "false");
+  }
+
+}
+
+function applyTheme(theme) {
+
+  const resolved = theme === "dark" ? "dark" : "light";
+
+  document.documentElement.setAttribute(
+    "data-theme",
+    resolved === "dark" ? "dark" : "light"
+  );
+
+  try {
+    localStorage.setItem("nfTheme", resolved);
+  } catch (error) {}
+
+  updateThemeToggleUi(resolved);
 
 }
 
@@ -239,49 +384,6 @@ function getStoredTheme() {
   } catch (error) {
     return "light";
   }
-
-}
-
-function applyTheme(theme) {
-
-  const resolved = theme === "dark" ? "dark" : "light";
-
-  document.documentElement.setAttribute(
-    "data-theme",
-    resolved === "dark" ? "dark" : "light"
-  );
-
-  try {
-    localStorage.setItem("nfTheme", resolved);
-  } catch (error) {}
-
-  const toggle = document.getElementById("themeToggle");
-
-  if (toggle) {
-    toggle.textContent =
-      resolved === "dark"
-        ? "DUNKELMODUS: AN"
-        : "DUNKELMODUS: AUS";
-  }
-
-}
-
-function setupThemeToggle() {
-
-  const toggle = document.getElementById("themeToggle");
-
-  if (!toggle) return;
-
-  toggle.addEventListener("click", () => {
-
-    const next =
-      getStoredTheme() === "dark"
-        ? "light"
-        : "dark";
-
-    applyTheme(next);
-
-  });
 
 }
 
@@ -508,10 +610,7 @@ function toggleProjectCollapse(projectId) {
 
 const state = {
 
-  projects: [],
-
-  // TODO CLEANUP NFOP 3.2 — activeProjectId nieużywane
-  activeProjectId: null
+  projects: []
 
 };
 
@@ -701,72 +800,6 @@ function clearProjectCalendarOnStorno(project) {
   }
 
   return true;
-
-}
-
-// TODO CLEANUP NFOP 3.2 — zastąpione przez openClientModal(); nigdy nie wywoływane
-function editClient(projectId) {
-
-  const project = state.projects.find(
-
-    p => p.id === projectId
-
-  );
-
-  if (!project) return;
-
-  // TODO NFOP 3.2 — nativer prompt(); eigenes Modal
-  const client = prompt(
-
-    "👤 Name",
-
-    project.client || ""
-
-  );
-
-  if (client === null) return;
-
-  const phone = prompt(
-
-    "📞 Telefon",
-
-    project.phone || ""
-
-  );
-
-  if (phone === null) return;
-
-  const email = prompt(
-
-    "✉️ E-Mail",
-
-    project.email || ""
-
-  );
-
-  if (email === null) return;
-
-  project.client = client;
-
-  project.phone = phone;
-
-  project.email = email;
-
-  const kunde = project.tasks.find(
-
-    task => task.label === "Kundendaten"
-
-  );
-
-  if (kunde) {
-
-    kunde.done = true;
-
-  }
-
-  saveProjects(projectId);
-
-  renderProjects();
 
 }
 
@@ -2478,91 +2511,6 @@ function closeNotesModal() {
   editingNotesProjectId = null;
 
   notesModalMode = "preview";
-
-}
-
-// TODO CLEANUP NFOP 3.2 — martwy kod; listenery są w renderProjects()
-function bindEvents() {
-
-  document
-    .getElementById("newProjectButton")
-    ?.addEventListener("click", addProject);
-
-  document
-    .querySelectorAll(".projectNotes")
-    .forEach(item => {
-
-      item.addEventListener("click", (event) => {
-
-        if (
-          event.target.closest(".projectNotesOfferToggle") ||
-          event.target.closest(".projectNotesOfferRemove")
-        ) {
-          return;
-        }
-
-        editNotes(item.dataset.project);
-
-      });
-
-    });
-
-  document
-    .querySelectorAll(".taskItem")
-    .forEach(item => {
-
-      item.addEventListener("click", () =>
-        toggleTask(
-          item.dataset.project,
-          Number(item.dataset.task)
-        )
-      );
-
-    });
-
-  document
-    .querySelectorAll(".projectTitle")
-    .forEach(item => {
-
-      item.addEventListener("click", () =>
-        editTitle(item.dataset.project)
-      );
-
-    });
-
-  document
-    .querySelectorAll(".clientName")
-    .forEach(item => {
-
-      item.addEventListener("click", () =>
-        openClientModal(item.dataset.project)
-      );
-
-    });
-
-  document
-    .querySelectorAll(".projectAddressMapBtn")
-    .forEach(item => {
-
-      item.addEventListener("click", (event) => {
-
-        event.stopPropagation();
-
-        openEventAddressInMaps(item.dataset.project);
-
-      });
-
-    });
-
-  document
-    .querySelectorAll(".projectDate")
-    .forEach(item => {
-
-      item.addEventListener("click", () =>
-        editDate(item.dataset.project)
-      );
-
-    });
 
 }
 

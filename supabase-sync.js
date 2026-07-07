@@ -279,16 +279,6 @@ function nfMigrateProjectRecord(project) {
 
 }
 
-function nfPersistLocalCache() {
-
-  try {
-    localStorage.setItem("nfProjects", JSON.stringify(state.projects));
-  } catch (error) {
-    console.error("[NF_sync] local cache write failed", error);
-  }
-
-}
-
 function nfEnqueueRemoteChange(type, row, source) {
 
   if (!row?.id) {
@@ -313,6 +303,10 @@ function nfEnqueueRemoteChange(type, row, source) {
 }
 
 function nfUpdateConnectionUi() {
+
+  if (typeof renderDashboard === "function") {
+    renderDashboard();
+  }
 
   if (typeof renderFooter === "function") {
     renderFooter();
@@ -688,7 +682,22 @@ async function nfSchedulePersist(projectIds) {
 
 async function nfHandleConnectivityRestored() {
 
-  await nfTestConnection();
+  const connected = await nfTestConnection();
+
+  if (!connected) {
+    return;
+  }
+
+  try {
+    await nfBootstrapFromRemote();
+    window.NF_synchro?.refreshFooter?.();
+  } catch (error) {
+    console.error("[NF_sync] reconnect bootstrap failed", error);
+    nfSetConnectionState({
+      supabaseReachable: false,
+      lastConnectionError: error.message || String(error)
+    });
+  }
 
 }
 

@@ -734,10 +734,37 @@ function nfSynchroRefreshFooter() {
 
   const pendingEl = document.getElementById("nfSyncPendingCount");
   const syncBtn = document.getElementById("nfSynchronizeBtn");
+  const onlineEl = document.getElementById("nfDashboardOnline");
   const count = nfSynchroGetPendingCount();
+  const connection = window.NF_sync?.getConnectionStatus?.() || {};
+  const supabaseConfigured = connection.configured !== false;
+  const isOnline = connection.online === true;
+
+  const onlineTitle = !supabaseConfigured
+    ? "Supabase nicht konfiguriert"
+    : isOnline
+      ? "Online · Supabase verbunden"
+      : "Offline · Supabase nicht erreichbar";
+
+  if (onlineEl) {
+    onlineEl.classList.toggle("heroOnlineBtn--up", isOnline);
+    onlineEl.classList.toggle("heroOnlineBtn--down", !isOnline);
+    onlineEl.title = onlineTitle;
+    onlineEl.setAttribute("aria-label", onlineTitle);
+  }
 
   if (pendingEl) {
-    pendingEl.textContent = "📦 " + count + " pending";
+    const countSpan = pendingEl.querySelector(".heroPendingCount");
+
+    if (countSpan) {
+      countSpan.textContent = String(count);
+    }
+
+    pendingEl.classList.toggle("heroPendingBtn--active", count > 0);
+    pendingEl.setAttribute(
+      "aria-label",
+      count + " ausstehende Änderungen"
+    );
   }
 
   if (syncBtn) {
@@ -752,8 +779,8 @@ function nfSynchroRefreshFooter() {
     }
   }
 
-  if (!pendingEl && typeof renderFooter === "function") {
-    renderFooter();
+  if (!pendingEl && typeof renderDashboard === "function") {
+    renderDashboard();
   }
 
 }

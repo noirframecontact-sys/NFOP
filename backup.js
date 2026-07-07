@@ -230,6 +230,30 @@ function backupApplyTheme(themeValue) {
   applyTheme(themeValue === "dark" ? "dark" : "light");
 }
 
+function backupQueueEnvelopeProjectsOutbound(projectIds) {
+
+  const ids = Array.isArray(projectIds)
+    ? projectIds.filter(Boolean)
+    : [];
+
+  if (!ids.length) {
+    return;
+  }
+
+  const syncedIds =
+    typeof window.NF_sync?.loadSyncedProjectIds === "function"
+      ? window.NF_sync.loadSyncedProjectIds()
+      : new Set();
+
+  ids.forEach(projectId => {
+    const type = syncedIds.has(projectId) ? "UPDATE" : "INSERT";
+    window.NF_synchro?.enqueueOutbound?.(type, projectId);
+  });
+
+  window.NF_synchro?.refreshFooter?.();
+
+}
+
 function backupApplyEnvelope(envelope, mode) {
   const normalizedMode = mode === "merge" ? "merge" : "replace";
   const incomingProjects = backupNormalizeProjects(envelope.projects);
@@ -259,6 +283,10 @@ function backupApplyEnvelope(envelope, mode) {
   if (normalizedMode === "replace" && envelope.theme) {
     backupApplyTheme(envelope.theme);
   }
+
+  backupQueueEnvelopeProjectsOutbound(
+    incomingProjects.map(project => project.id)
+  );
 
   if (typeof saveProjects === "function") {
     saveProjects();

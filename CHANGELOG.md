@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## 4.0.0-alpha.003
+
+Pre-deployment polish and hero operational dashboard
+
+- Move sync controls to hero bar: online status, pending (handbrake), SYNCHRO (4×4)
+- Move Dunkelmodus toggle to hero bar (light bulb on/off icon); minimal footer
+- Open From queues outbound INSERT/UPDATE for imported projects
+- Reconnect runs bootstrap compare → Volvo Trunk (operator still decides via SYNCHRO)
+- Remove direct `localStorage nfProjects` access from `angebot.js`
+- Remove dead BUILD 001 render code from `ui.js`
+- Remove obsolete `editClient`, `bindEvents`, and unused sync footer UI
+
 ## 4.0.0-alpha.002
 
 Volvo Trunk — operator-controlled synchronization
