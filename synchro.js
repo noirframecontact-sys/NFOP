@@ -745,12 +745,15 @@ function nfSynchroRefreshFooter() {
   const connection = window.NF_sync?.getConnectionStatus?.() || {};
   const supabaseConfigured = connection.configured !== false;
   const isOnline = connection.online === true;
+  const blocksReady = connection.supervisorBlocksReady === true;
 
   const onlineTitle = !supabaseConfigured
     ? "Supabase nicht konfiguriert"
-    : isOnline
-      ? "Online · Supabase verbunden"
-      : "Offline · Supabase nicht erreichbar";
+    : !isOnline
+      ? "Offline · Supabase nicht erreichbar"
+      : !blocksReady
+        ? "Online · Kalendarz: uruchom RUN-CALENDAR.sql w Supabase"
+        : "Online · Supabase verbunden";
 
   if (onlineEl) {
     onlineEl.classList.toggle("heroOnlineBtn--up", isOnline);

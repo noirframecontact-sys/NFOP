@@ -1022,11 +1022,27 @@ p {
 
 }
 
-#dateModal.modal {
+#dateModal.modal,
+#supervisorCalendarModal.modal {
 
-  align-items: center;
+  touch-action: pan-y;
 
-  justify-content: center;
+}
+
+#dateModal .supervisorCalDay,
+#supervisorCalendarModal .supervisorCalDay {
+
+  touch-action: manipulation;
+
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.12);
+
+}
+
+.dateSelectedLabel--blocked {
+
+  color: #c62828;
+
+  font-weight: 600;
 
 }
 

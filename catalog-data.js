@@ -1,4 +1,4 @@
-﻿use strict;
+﻿"use strict";
 window.NF_CATALOG_DATA = {
   "version": "2.0",
   "company": "NoirFrame",

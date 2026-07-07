@@ -338,9 +338,16 @@ function openSupervisorCalendar() {
 
   supervisorCalRender();
   modal.classList.remove("hidden");
+
+  void window.NF_calendarStore?.bootstrapDebounced?.(true)
+    .then(bootstrap => {
+      if (bootstrap?.ok) {
+        supervisorCalRender();
+      }
+    });
 }
 
-function supervisorCalBlockSelectedDay() {
+async function supervisorCalBlockSelectedDay() {
   const day = supervisorCalState.selectedDay;
   const reasonInput = document.getElementById("supervisorCalReason");
   const cpe = supervisorCalGetCpe();
@@ -361,21 +368,30 @@ function supervisorCalBlockSelectedDay() {
     return;
   }
 
-  const result = cpe.setBlockedDay(
+  const result = await cpe.setBlockedDay(
     day,
     reasonInput?.value || "Privat"
   );
 
   if (!result?.ok) {
-    supervisorCalShowDetailError(result?.message || "Sperre fehlgeschlagen.");
+    supervisorCalShowDetailError(
+      result?.message || "Sperre fehlgeschlagen."
+    );
     return;
   }
 
-  supervisorCalShowDetailError("");
+  if (result?.warning) {
+    supervisorCalShowDetailError(result.warning);
+  } else if (result?.synced) {
+    supervisorCalShowDetailError("Blokada zsynchronizowana z chmurą.");
+  } else {
+    supervisorCalShowDetailError("");
+  }
+
   supervisorCalRender();
 }
 
-function supervisorCalUnblockSelectedDay() {
+async function supervisorCalUnblockSelectedDay() {
   const day = supervisorCalState.selectedDay;
   const cpe = supervisorCalGetCpe();
 
@@ -383,7 +399,7 @@ function supervisorCalUnblockSelectedDay() {
     return;
   }
 
-  const result = cpe.removeBlockedDay(day);
+  const result = await cpe.removeBlockedDay(day);
 
   if (!result?.ok) {
     supervisorCalShowDetailError(
@@ -392,7 +408,12 @@ function supervisorCalUnblockSelectedDay() {
     return;
   }
 
-  supervisorCalShowDetailError("");
+  if (result?.warning) {
+    supervisorCalShowDetailError(result.warning);
+  } else {
+    supervisorCalShowDetailError("");
+  }
+
   supervisorCalRender();
 }
 

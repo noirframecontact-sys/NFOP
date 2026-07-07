@@ -214,13 +214,16 @@ function nfHeroSyncControlsHtml() {
   const connection = window.NF_sync?.getConnectionStatus?.() || {};
   const supabaseConfigured = connection.configured !== false;
   const isOnline = connection.online === true;
+  const blocksReady = connection.supervisorBlocksReady === true;
   const pendingCount = window.NF_synchro?.getPendingCount?.() || 0;
 
   const onlineTitle = !supabaseConfigured
     ? "Supabase nicht konfiguriert"
-    : isOnline
-      ? "Online · Supabase verbunden"
-      : "Offline · Supabase nicht erreichbar";
+    : !isOnline
+      ? "Offline · Supabase nicht erreichbar"
+      : !blocksReady
+        ? "Online · Kalendarz: uruchom RUN-CALENDAR.sql w Supabase"
+        : "Online · Supabase verbunden";
 
   return `
 
@@ -389,18 +392,16 @@ function getStoredTheme() {
 
 function setupCalendarRealtimeRefresh() {
 
-  const refreshOpenCalendars = () => {
-    renderProjects();
-  };
+  let projectsRefreshTimer = null;
 
   window.NF_events?.on?.(
     window.NF_events?.TYPES?.CALENDAR_CHANGED,
-    refreshOpenCalendars
-  );
-
-  window.NF_events?.on?.(
-    window.NF_events?.TYPES?.CALENDAR_BLOCK_CHANGED,
-    refreshOpenCalendars
+    () => {
+      clearTimeout(projectsRefreshTimer);
+      projectsRefreshTimer = setTimeout(() => {
+        renderProjects();
+      }, 300);
+    }
   );
 
 }
@@ -740,6 +741,7 @@ function startNewInquiry() {
   document.getElementById("dateModal")?.classList.remove("hidden");
 
   window.NF_operatorTerminCal?.render?.(null);
+  window.NF_operatorTerminCal?.sync?.();
 
 }
 
@@ -1860,6 +1862,20 @@ function clearDateModalError() {
 
 }
 
+function showDateModalError(message) {
+
+  const error = document.getElementById("dateModalError");
+
+  if (!error) return;
+
+  error.textContent = message;
+
+  error.classList.remove("hidden");
+
+  error.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+
+}
+
 function showDateModalOk(message) {
 
   const ok = document.getElementById("dateModalOk");
@@ -1869,6 +1885,8 @@ function showDateModalOk(message) {
   ok.textContent = message;
 
   ok.classList.remove("hidden");
+
+  ok.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
 
 }
 
@@ -1966,18 +1984,6 @@ function formatGermanDateFromIso(isoDate) {
   }
 
   return match[3] + "." + match[2] + "." + match[1];
-
-}
-
-function showDateModalError(message) {
-
-  const error = document.getElementById("dateModalError");
-
-  if (!error) return;
-
-  error.textContent = message;
-
-  error.classList.remove("hidden");
 
 }
 
@@ -2210,6 +2216,7 @@ function editDate(projectId) {
     .classList.remove("hidden");
 
   window.NF_operatorTerminCal?.render?.(projectId);
+  window.NF_operatorTerminCal?.sync?.();
 
 }
 

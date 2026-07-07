@@ -176,46 +176,34 @@ function operatorTerminCalSyncViewToSelectedDay(day) {
 
 
 
-function operatorTerminCalUpdateSelectedLabel() {
-
+function operatorTerminCalUpdateSelectedLabel(options) {
+  const opts = options || {};
   const label = document.getElementById("dateSelectedLabel");
 
-
-
   if (!label) {
-
     return;
-
   }
-
-
 
   const day = operatorTerminCalGetSelectedDay();
 
-
-
   if (!day) {
-
     label.textContent = "Bitte Tag im Kalender wählen.";
-
     label.className = "dateSelectedLabel dateSelectedLabel--empty";
-
     return;
-
   }
 
-
-
   const parts = day.split("-");
-
   const display = parts[2] + "." + parts[1] + "." + parts[0];
 
-
+  if (opts.blocked) {
+    label.textContent =
+      "Nicht verfügbar: " + display + " — " + (opts.reason || "belegt");
+    label.className = "dateSelectedLabel dateSelectedLabel--blocked";
+    return;
+  }
 
   label.textContent = "Gewählt: " + display;
-
   label.className = "dateSelectedLabel dateSelectedLabel--set";
-
 }
 
 
@@ -385,99 +373,74 @@ function operatorTerminCalRenderGrid() {
 
 
 function operatorTerminCalHandleDayClick(day) {
-
   const today = new Date();
-
   const todayString =
-
     `${today.getFullYear()}-` +
-
     `${String(today.getMonth() + 1).padStart(2, "0")}-` +
-
     `${String(today.getDate()).padStart(2, "0")}`;
 
-
-
-  if (day < todayString) {
-
-    window.NF_showDateModalError?.(
-
-      "Vergangene Tage können nicht gebucht werden."
-
-    );
-
-    window.NF_onInquiryDayBlocked?.(day, { kind: "past" });
-
-    return;
-
-  }
-
-
-
-  const cpe = window.NF_cpe;
-
-  const status =
-
-    cpe?.getOperatorDayCalendarStatus?.(
-
-      day,
-
-      operatorTerminCalGetProjects(),
-
-      operatorTerminCalState.projectId
-
-    ) || { day, kind: "free" };
-
-
-
-  if (status.kind === "auftrag") {
-
-    window.NF_showDateModalError?.(
-
-      `Tag ${day} ausgebucht — ${status.title || "Auftrag"}. ` +
-
-        "Leider nicht verfügbar."
-
-    );
-
-    window.NF_onInquiryDayBlocked?.(day, status);
-
-    return;
-
-  }
-
-
-
-  if (status.kind === "blocked") {
-
-    window.NF_showDateModalError?.(
-
-      `Tag ${day} gesperrt — ${status.reason || "Privat"}. ` +
-
-        "Keine Reservierung möglich."
-
-    );
-
-    window.NF_onInquiryDayBlocked?.(day, status);
-
-    return;
-
-  }
-
-
-
-  window.NF_clearDateModalError?.();
-
-
-
   operatorTerminCalSetSelectedDay(day);
-
   operatorTerminCalRenderGrid();
 
+  if (day < todayString) {
+    operatorTerminCalUpdateSelectedLabel({
+      blocked: true,
+      reason: "Vergangen"
+    });
+    window.NF_showDateModalError?.(
+      "Vergangene Tage können nicht gebucht werden."
+    );
+    window.NF_onInquiryDayBlocked?.(day, { kind: "past" });
+    return;
+  }
 
+  const cpe = window.NF_cpe;
+  const status =
+    cpe?.getOperatorDayCalendarStatus?.(
+      day,
+      operatorTerminCalGetProjects(),
+      operatorTerminCalState.projectId
+    ) || { day, kind: "free" };
 
+  if (status.kind === "auftrag") {
+    operatorTerminCalUpdateSelectedLabel({
+      blocked: true,
+      reason: status.title || "Auftrag"
+    });
+    window.NF_showDateModalError?.(
+      `Tag ${day} ausgebucht — ${status.title || "Auftrag"}. ` +
+        "Leider nicht verfügbar."
+    );
+    window.NF_onInquiryDayBlocked?.(day, status);
+    return;
+  }
+
+  if (status.kind === "blocked") {
+    operatorTerminCalUpdateSelectedLabel({
+      blocked: true,
+      reason: status.reason || "Privat"
+    });
+    window.NF_showDateModalError?.(
+      `Tag ${day} gesperrt — ${status.reason || "Privat"}. ` +
+        "Keine Reservierung möglich."
+    );
+    window.NF_onInquiryDayBlocked?.(day, status);
+    return;
+  }
+
+  window.NF_clearDateModalError?.();
+  operatorTerminCalUpdateSelectedLabel();
   window.NF_onInquiryDaySelected?.(day);
+}
 
+function operatorTerminCalActivateDayFromGrid(event) {
+  const button = event.target?.closest?.("[data-day]");
+
+  if (!button?.dataset?.day) {
+    return;
+  }
+
+  operatorTerminCalHandleDayClick(button.dataset.day);
 }
 
 
@@ -521,8 +484,20 @@ function operatorTerminCalShiftMonth(delta) {
 
 
 function renderOperatorTerminCalendar(projectId) {
-
   operatorTerminCalState.projectId = projectId || null;
+  operatorTerminCalRenderInner(projectId);
+}
+
+function syncOperatorTerminCalendar() {
+  void window.NF_calendarStore?.bootstrapDebounced?.(true)
+    .then(bootstrap => {
+      if (bootstrap?.ok) {
+        operatorTerminCalRenderInner(operatorTerminCalState.projectId);
+      }
+    });
+}
+
+function operatorTerminCalRenderInner(projectId) {
 
 
 
@@ -570,7 +545,7 @@ function setupOperatorTerminCalendar() {
     const modal = document.getElementById("dateModal");
 
     if (modal && !modal.classList.contains("hidden")) {
-      renderOperatorTerminCalendar(operatorTerminCalState.projectId);
+      operatorTerminCalRenderGrid();
     }
   };
 
@@ -600,28 +575,29 @@ function setupOperatorTerminCalendar() {
 
 
 
-  document
+  const grid = document.getElementById("operatorTerminCalGrid");
 
-    .getElementById("operatorTerminCalGrid")
+  if (grid) {
 
-    ?.addEventListener("click", event => {
+    let touchHandled = false;
 
-      const button = event.target?.closest?.("[data-day]");
+    grid.addEventListener("touchend", event => {
+      touchHandled = true;
+      operatorTerminCalActivateDayFromGrid(event);
+      window.setTimeout(() => {
+        touchHandled = false;
+      }, 450);
+    }, { passive: true });
 
-
-
-      if (!button?.dataset?.day) {
-
+    grid.addEventListener("click", event => {
+      if (touchHandled) {
         return;
-
       }
 
-
-
-      operatorTerminCalHandleDayClick(button.dataset.day);
-
+      operatorTerminCalActivateDayFromGrid(event);
     });
 
+  }
 }
 
 
@@ -631,6 +607,7 @@ window.NF_operatorTerminCal = Object.freeze({
   setup: setupOperatorTerminCalendar,
 
   render: renderOperatorTerminCalendar,
+  sync: syncOperatorTerminCalendar,
 
   reset: resetOperatorTerminCalendar,
 

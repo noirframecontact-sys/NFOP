@@ -13,8 +13,12 @@ const NF_BLOCK_SYNC_QUEUE_KEY = "nfBlockSyncQueue";
 
 const nfCalendarStoreState = {
   bootstrapped: false,
-  flushing: false
+  flushing: false,
+  bootstrapPromise: null,
+  bootstrapLastAt: 0
 };
+
+const NF_CAL_BOOTSTRAP_MIN_MS = 30000;
 
 function nfCalNormalizeDay(day) {
   const match = String(day || "").trim().match(/^(\d{4}-\d{2}-\d{2})/);
@@ -77,11 +81,6 @@ function nfCalSaveCache(entries) {
 function nfCalEmitBlockChanged(payload) {
   window.NF_events?.emit?.(
     window.NF_events?.TYPES?.CALENDAR_BLOCK_CHANGED,
-    payload || {}
-  );
-
-  window.NF_events?.emit?.(
-    window.NF_events?.TYPES?.CALENDAR_CHANGED,
     payload || {}
   );
 }
@@ -149,11 +148,18 @@ function nfCalApplyRemoteUpsert(row) {
     return;
   }
 
+  const reason = String(row.reason || "Privat").trim() || "Privat";
+  const existing = nfCalGetBlockEntry(day);
+
+  if (existing && existing.reason === reason) {
+    return;
+  }
+
   const entries = nfCalLoadCache().filter(entry => entry.day !== day);
 
   entries.push({
     day,
-    reason: String(row.reason || "Privat").trim() || "Privat",
+    reason,
     createdAt: row.created_at || row.updated_at || ""
   });
 
@@ -168,11 +174,27 @@ function nfCalApplyRemoteDelete(row) {
     return;
   }
 
+  if (!nfCalGetBlockEntry(day)) {
+    return;
+  }
+
   nfCalSaveCache(
     nfCalLoadCache().filter(entry => entry.day !== day)
   );
 
   nfCalEmitBlockChanged({ day, source: "remote-delete" });
+}
+
+function nfCalSyncErrorMessage(error) {
+  const code = String(error?.code || "");
+
+  if (code === "PGRST205") {
+    return (
+      "Brak tabeli supervisor_blocks — uruchom schema-calendar.sql w Supabase SQL Editor."
+    );
+  }
+
+  return error?.message || "Sync fehlgeschlagen.";
 }
 
 async function nfCalPersistBlock(day, reason) {
@@ -273,7 +295,34 @@ async function nfCalBlockDay(day, reason) {
   if (window.NF_sync?.isOnline?.()) {
 
     try {
-      await nfCalPersistBlock(normalizedDay, normalizedReason);
+      const result = await nfCalPersistBlock(
+        normalizedDay,
+        normalizedReason
+      );
+
+      if (result?.code === "PGRST205") {
+        nfCalEnqueueBlockChange({
+          type: "UPSERT",
+          blockDay: normalizedDay,
+          reason: normalizedReason
+        });
+        return {
+          ok: true,
+          day: normalizedDay,
+          warning: nfCalSyncErrorMessage(result.error || { code: "PGRST205" })
+        };
+      }
+
+      if (result?.ok === false) {
+        throw result.error || new Error("block persist failed");
+      }
+
+      return {
+        ok: true,
+        day: normalizedDay,
+        synced: true
+      };
+
     } catch (error) {
       console.error("[NF_calendarStore] block persist failed", error);
       nfCalEnqueueBlockChange({
@@ -301,25 +350,57 @@ async function nfCalUnblockDay(day) {
     return { ok: false, message: "Ungültiges Datum." };
   }
 
-  nfCalSaveCache(
-    nfCalLoadCache().filter(entry => entry.day !== normalizedDay)
-  );
-
-  nfCalEmitBlockChanged({
-    day: normalizedDay,
-    source: "local-unblock"
-  });
-
   if (window.NF_sync?.isOnline?.()) {
 
     try {
-      await nfCalPersistUnblock(normalizedDay);
+      const result = await nfCalPersistUnblock(normalizedDay);
+
+      if (result?.code === "PGRST205") {
+        nfCalSaveCache(
+          nfCalLoadCache().filter(entry => entry.day !== normalizedDay)
+        );
+        nfCalEmitBlockChanged({
+          day: normalizedDay,
+          source: "local-unblock-schema-missing"
+        });
+        return {
+          ok: true,
+          day: normalizedDay,
+          warning: nfCalSyncErrorMessage(result.error || { code: "PGRST205" })
+        };
+      }
+
+      if (result?.ok === false) {
+        throw result.error || new Error("unblock persist failed");
+      }
+
     } catch (error) {
       console.error("[NF_calendarStore] unblock persist failed", error);
+      const code = String(error?.code || "");
+
+      if (code === "PGRST205") {
+        nfCalSaveCache(
+          nfCalLoadCache().filter(entry => entry.day !== normalizedDay)
+        );
+        nfCalEmitBlockChanged({
+          day: normalizedDay,
+          source: "local-unblock-schema-missing"
+        });
+        return {
+          ok: true,
+          day: normalizedDay,
+          warning: nfCalSyncErrorMessage(error)
+        };
+      }
+
       nfCalEnqueueBlockChange({
         type: "DELETE",
         blockDay: normalizedDay
       });
+      return {
+        ok: false,
+        message: nfCalSyncErrorMessage(error)
+      };
     }
 
   } else {
@@ -328,6 +409,15 @@ async function nfCalUnblockDay(day) {
       blockDay: normalizedDay
     });
   }
+
+  nfCalSaveCache(
+    nfCalLoadCache().filter(entry => entry.day !== normalizedDay)
+  );
+
+  nfCalEmitBlockChanged({
+    day: normalizedDay,
+    source: "local-unblock"
+  });
 
   return { ok: true, day: normalizedDay };
 }
@@ -341,17 +431,64 @@ function nfCalReplaceCacheFromRemote(rows) {
     }))
     .filter(entry => entry.day);
 
+  const nextJson = JSON.stringify(remoteEntries);
+  const prevJson = JSON.stringify(nfCalLoadCache());
+
+  if (nextJson === prevJson) {
+    return false;
+  }
+
   nfCalSaveCache(remoteEntries);
+  return true;
 }
 
 async function nfCalBootstrapFromRemote() {
   if (!window.NF_sync?.fetchSupervisorBlocks) {
-    return;
+    return { ok: false, reason: "no-sync" };
   }
 
-  const rows = await window.NF_sync.fetchSupervisorBlocks();
+  try {
 
-  nfCalReplaceCacheFromRemote(rows);
+    const rows = await window.NF_sync.fetchSupervisorBlocks();
+    const status = window.NF_sync?.getConnectionStatus?.() || {};
+
+    if (!status.supervisorBlocksReady) {
+      return { ok: false, reason: "schema-missing" };
+    }
+
+    if (nfCalReplaceCacheFromRemote(rows)) {
+      nfCalEmitBlockChanged({ source: "remote-bootstrap" });
+    }
+
+    return { ok: true, count: rows.length };
+
+  } catch (error) {
+    console.warn("[NF_calendarStore] bootstrap failed", error);
+    return { ok: false, reason: "fetch-failed", error };
+  }
+}
+
+async function nfCalBootstrapDebounced(force) {
+  const now = Date.now();
+
+  if (
+    !force &&
+    now - nfCalendarStoreState.bootstrapLastAt < NF_CAL_BOOTSTRAP_MIN_MS
+  ) {
+    return { ok: false, reason: "debounced" };
+  }
+
+  if (nfCalendarStoreState.bootstrapPromise) {
+    return nfCalendarStoreState.bootstrapPromise;
+  }
+
+  nfCalendarStoreState.bootstrapPromise = nfCalBootstrapFromRemote()
+    .finally(() => {
+      nfCalendarStoreState.bootstrapPromise = null;
+      nfCalendarStoreState.bootstrapLastAt = Date.now();
+    });
+
+  return nfCalendarStoreState.bootstrapPromise;
 }
 
 async function nfCalInit() {
@@ -371,6 +508,7 @@ async function nfCalInit() {
 window.NF_calendarStore = {
   init: nfCalInit,
   bootstrapFromRemote: nfCalBootstrapFromRemote,
+  bootstrapDebounced: nfCalBootstrapDebounced,
   flushBlockQueue: nfCalFlushBlockQueue,
   blockDay: nfCalBlockDay,
   unblockDay: nfCalUnblockDay,

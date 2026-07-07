@@ -22,7 +22,9 @@ const nfSyncState = {
   lastConnectionTestAt: null,
   lastConnectionError: null,
   bootstrapped: false,
-  calendarLaneEnabled: true
+  calendarLaneEnabled: true,
+  supervisorBlocksReady: false,
+  blocksWatchTimer: null
 };
 
 function nfGetMergedConfig() {
@@ -480,9 +482,15 @@ async function nfFetchSupervisorBlocks() {
     .order("block_day", { ascending: true });
 
   if (error) {
+    if (error.code === "PGRST205") {
+      nfSyncState.supervisorBlocksReady = false;
+      return [];
+    }
     throw error;
   }
 
+  nfSyncState.supervisorBlocksReady = true;
+  nfStopSupervisorBlocksWatch();
   return Array.isArray(data) ? data : [];
 
 }
@@ -518,9 +526,14 @@ async function nfUpsertSupervisorBlock(blockDay, reason) {
     });
 
   if (error) {
+    if (error.code === "PGRST205") {
+      nfSyncState.supervisorBlocksReady = false;
+      return { ok: false, code: "PGRST205", error };
+    }
     throw error;
   }
 
+  nfSyncState.supervisorBlocksReady = true;
   return { ok: true, reason: "upserted" };
 
 }
@@ -537,21 +550,39 @@ async function nfDeleteSupervisorBlock(blockDay) {
     .eq("block_day", String(blockDay).trim());
 
   if (error) {
+    if (error.code === "PGRST205") {
+      nfSyncState.supervisorBlocksReady = false;
+      return { ok: false, code: "PGRST205", error };
+    }
     throw error;
   }
 
+  nfSyncState.supervisorBlocksReady = true;
   return { ok: true, reason: "deleted" };
 
 }
 
 function nfApplySupervisorBlockRealtime(type, row) {
 
-  if (!row?.block_day) {
+  if (type === "DELETE") {
+
+    const day = String(row?.block_day || "").trim().match(/^(\d{4}-\d{2}-\d{2})/);
+
+    if (day) {
+      window.NF_calendarStore?.applyRemoteDelete?.({ block_day: day[1] });
+      return;
+    }
+
+    console.warn(
+      "[NF_sync] DELETE supervisor_blocks without block_day — refetching",
+      row
+    );
+    void window.NF_calendarStore?.bootstrapFromRemote?.();
     return;
+
   }
 
-  if (type === "DELETE") {
-    window.NF_calendarStore?.applyRemoteDelete?.(row);
+  if (!row?.block_day) {
     return;
   }
 
@@ -682,6 +713,7 @@ function nfGetConnectionStatus() {
     browserOnline: nfSyncState.browserOnline,
     supabaseReachable: nfSyncState.supabaseReachable,
     configured: nfSyncState.configured,
+    supervisorBlocksReady: nfSyncState.supervisorBlocksReady,
     online: nfIsOnline(),
     lastConnectionTestAt: nfSyncState.lastConnectionTestAt,
     lastConnectionError: nfSyncState.lastConnectionError
@@ -1079,6 +1111,63 @@ function nfSetupConnectivityListeners() {
 
 }
 
+function nfStopSupervisorBlocksWatch() {
+
+  if (!nfSyncState.blocksWatchTimer) {
+    return;
+  }
+
+  clearInterval(nfSyncState.blocksWatchTimer);
+  nfSyncState.blocksWatchTimer = null;
+
+}
+
+function nfStartSupervisorBlocksWatch() {
+
+  if (nfSyncState.blocksWatchTimer || nfSyncState.supervisorBlocksReady) {
+    return;
+  }
+
+  let attempts = 0;
+
+  nfSyncState.blocksWatchTimer = window.setInterval(() => {
+
+    attempts += 1;
+
+    if (
+      nfSyncState.supervisorBlocksReady ||
+      !nfSyncState.client ||
+      !nfIsOnline() ||
+      attempts > 12
+    ) {
+      nfStopSupervisorBlocksWatch();
+      return;
+    }
+
+    void nfBootstrapBlocksFromRemote()
+      .then(() => {
+
+        if (!nfSyncState.supervisorBlocksReady) {
+          return;
+        }
+
+        nfStopSupervisorBlocksWatch();
+        nfSubscribeBlocksRealtime();
+        void window.NF_calendarStore?.flushBlockQueue?.();
+        window.NF_events?.emit?.(
+          window.NF_events?.TYPES?.CALENDAR_BLOCK_CHANGED,
+          { source: "schema-ready" }
+        );
+        nfSetConnectionState({ lastConnectionError: null });
+        nfUpdateConnectionUi();
+
+      })
+      .catch(() => {});
+
+  }, 30000);
+
+}
+
 async function nfInitSupabaseSync() {
 
   if (nfSyncState.bootstrapped) {
@@ -1129,16 +1218,35 @@ async function nfInitSupabaseSync() {
   if (connected) {
     try {
       await nfBootstrapFromRemote();
-      await window.NF_calendarStore?.init?.();
-      nfSubscribeRealtime();
-      nfSubscribeBlocksRealtime();
-      window.NF_synchro?.refreshFooter?.();
     } catch (error) {
-      console.error("[NF_sync] bootstrap failed", error);
+      console.error("[NF_sync] projects bootstrap failed", error);
       nfSetConnectionState({
         supabaseReachable: false,
         lastConnectionError: error.message || String(error)
       });
+      return nfGetConnectionStatus();
+    }
+
+    try {
+      await window.NF_calendarStore?.init?.();
+      nfSubscribeBlocksRealtime();
+    } catch (error) {
+      console.warn(
+        "[NF_sync] calendar bootstrap failed — run supabase/schema-calendar.sql",
+        error
+      );
+      nfSetConnectionState({
+        lastConnectionError:
+          "Kalendarz: brak tabeli supervisor_blocks (uruchom schema-calendar.sql)"
+      });
+    }
+
+    try {
+      nfSubscribeRealtime();
+      nfStartSupervisorBlocksWatch();
+      window.NF_synchro?.refreshFooter?.();
+    } catch (error) {
+      console.error("[NF_sync] realtime subscribe failed", error);
     }
   }
 

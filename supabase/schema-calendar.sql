@@ -56,6 +56,9 @@ execute function public.nf_set_supervisor_block_audit();
 
 alter table public.supervisor_blocks enable row level security;
 
+-- Realtime DELETE must include block_day in payload.old (NFOP 4.1 unblock sync)
+alter table public.supervisor_blocks replica identity full;
+
 drop policy if exists "nfop_41_anon_supervisor_blocks" on public.supervisor_blocks;
 
 create policy "nfop_41_anon_supervisor_blocks"
@@ -65,5 +68,11 @@ to anon, authenticated
 using (true)
 with check (true);
 
--- Run once. Ignore error if table is already in publication.
-alter publication supabase_realtime add table public.supervisor_blocks;
+-- Run once. Safe if already in publication.
+do $$
+begin
+  alter publication supabase_realtime add table public.supervisor_blocks;
+exception
+  when duplicate_object then
+    null;
+end $$;
