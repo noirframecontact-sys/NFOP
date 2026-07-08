@@ -340,7 +340,7 @@ function openSupervisorCalendar() {
   modal.classList.remove("hidden");
 }
 
-function supervisorCalBlockSelectedDay() {
+async function supervisorCalBlockSelectedDay() {
   const day = supervisorCalState.selectedDay;
   const reasonInput = document.getElementById("supervisorCalReason");
   const cpe = supervisorCalGetCpe();
@@ -361,7 +361,7 @@ function supervisorCalBlockSelectedDay() {
     return;
   }
 
-  const result = cpe.setBlockedDay(
+  const result = await cpe.setBlockedDay(
     day,
     reasonInput?.value || "Privat"
   );
@@ -375,7 +375,7 @@ function supervisorCalBlockSelectedDay() {
   supervisorCalRender();
 }
 
-function supervisorCalUnblockSelectedDay() {
+async function supervisorCalUnblockSelectedDay() {
   const day = supervisorCalState.selectedDay;
   const cpe = supervisorCalGetCpe();
 
@@ -383,7 +383,7 @@ function supervisorCalUnblockSelectedDay() {
     return;
   }
 
-  const result = cpe.removeBlockedDay(day);
+  const result = await cpe.removeBlockedDay(day);
 
   if (!result?.ok) {
     supervisorCalShowDetailError(

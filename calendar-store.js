@@ -341,7 +341,12 @@ function nfCalReplaceCacheFromRemote(rows) {
     }))
     .filter(entry => entry.day);
 
-  nfCalSaveCache(remoteEntries);
+  const remoteDays = new Set(remoteEntries.map(entry => entry.day));
+  const localOnly = nfCalLoadCache().filter(
+    entry => entry.day && !remoteDays.has(entry.day)
+  );
+
+  nfCalSaveCache(remoteEntries.concat(localOnly));
 }
 
 async function nfCalBootstrapFromRemote() {

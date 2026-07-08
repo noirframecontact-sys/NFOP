@@ -346,7 +346,7 @@ function saveBlockedDayEntries(entries) {
   window.NF_backup?.onLocalDataSaved?.();
 }
 
-function setBlockedDay(day, reason) {
+async function setBlockedDay(day, reason) {
   const normalizedDay = cpeExtractCalendarDay(day);
 
   if (!normalizedDay) {
@@ -354,8 +354,7 @@ function setBlockedDay(day, reason) {
   }
 
   if (window.NF_calendarStore?.blockDay) {
-    window.NF_calendarStore.blockDay(normalizedDay, reason);
-    return { ok: true, day: normalizedDay };
+    return window.NF_calendarStore.blockDay(normalizedDay, reason);
   }
 
   const entries = getBlockedDayEntries().filter(
@@ -373,7 +372,7 @@ function setBlockedDay(day, reason) {
   return { ok: true, day: normalizedDay };
 }
 
-function removeBlockedDay(day) {
+async function removeBlockedDay(day) {
   const normalizedDay = cpeExtractCalendarDay(day);
 
   if (!normalizedDay) {
@@ -381,8 +380,7 @@ function removeBlockedDay(day) {
   }
 
   if (window.NF_calendarStore?.unblockDay) {
-    window.NF_calendarStore.unblockDay(normalizedDay);
-    return { ok: true, day: normalizedDay };
+    return window.NF_calendarStore.unblockDay(normalizedDay);
   }
 
   saveBlockedDayEntries(
