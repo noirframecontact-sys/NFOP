@@ -10,7 +10,6 @@ Schema v1 — pod sync 3× iPad
 const NF_BACKUP_SCHEMA_VERSION = 1;
 const NF_BLOCKED_DAYS_STORAGE_KEY = "nfBlockedDays";
 const NF_SYNC_SNAPSHOT_KEY = "nfSyncSnapshot";
-const NF_DEVICE_ID_KEY = "nfDeviceId";
 
 const backupRuntime = {
   lastSnapshotHash: "",
@@ -43,7 +42,7 @@ function backupCloneJson(value) {
 
 function backupGetDeviceId() {
   try {
-    let deviceId = localStorage.getItem(NF_DEVICE_ID_KEY);
+    let deviceId = localStorage.getItem("nfDeviceId");
 
     if (!deviceId) {
       deviceId =
@@ -51,7 +50,7 @@ function backupGetDeviceId() {
           ? crypto.randomUUID()
           : "nf-device-" + Date.now();
 
-      localStorage.setItem(NF_DEVICE_ID_KEY, deviceId);
+      localStorage.setItem("nfDeviceId", deviceId);
     }
 
     return deviceId;

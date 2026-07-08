@@ -284,9 +284,6 @@ function cpeExtractCalendarDay(dateValue) {
   return match ? match[1] : "";
 }
 
-const NF_BLOCKED_DAYS_KEY = "nfBlockedDays";
-const NF_BLOCK_SYNC_QUEUE_KEY = "nfBlockSyncQueue";
-
 function cpeEmitBlockChanged(day, source) {
   const payload = { day, source: source || "local" };
 
@@ -303,7 +300,7 @@ function cpeEmitBlockChanged(day, source) {
 
 function cpeEnqueueBlockChange(entry) {
   try {
-    const raw = localStorage.getItem(NF_BLOCK_SYNC_QUEUE_KEY);
+    const raw = localStorage.getItem("nfBlockSyncQueue");
     const parsed = raw ? JSON.parse(raw) : [];
     const queue = Array.isArray(parsed) ? parsed : [];
     const filtered = queue.filter(item => item.blockDay !== entry.blockDay);
@@ -315,7 +312,7 @@ function cpeEnqueueBlockChange(entry) {
       queuedAt: new Date().toISOString()
     });
 
-    localStorage.setItem(NF_BLOCK_SYNC_QUEUE_KEY, JSON.stringify(filtered));
+    localStorage.setItem("nfBlockSyncQueue", JSON.stringify(filtered));
   } catch (error) {}
 }
 
@@ -344,7 +341,7 @@ function normalizeBlockedDayEntries(raw) {
 
 function getBlockedDayEntries() {
   try {
-    const saved = localStorage.getItem(NF_BLOCKED_DAYS_KEY);
+    const saved = localStorage.getItem("nfBlockedDays");
 
     if (!saved) {
       return [];
@@ -376,7 +373,7 @@ function getBlockedDayEntry(day) {
 
 function saveBlockedDayEntries(entries) {
   localStorage.setItem(
-    NF_BLOCKED_DAYS_KEY,
+    "nfBlockedDays",
     JSON.stringify(normalizeBlockedDayEntries(entries))
   );
 
