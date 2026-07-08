@@ -343,10 +343,6 @@ function normalizeBlockedDayEntries(raw) {
 }
 
 function getBlockedDayEntries() {
-  if (window.NF_calendarStore?.getBlockEntries) {
-    return window.NF_calendarStore.getBlockEntries();
-  }
-
   try {
     const saved = localStorage.getItem(NF_BLOCKED_DAYS_KEY);
 
@@ -411,21 +407,16 @@ async function setBlockedDay(day, reason) {
   cpeEmitBlockChanged(normalizedDay, "local");
 
   if (window.NF_sync?.isOnline?.() && window.NF_sync?.upsertSupervisorBlock) {
-
-    try {
-      await window.NF_sync.upsertSupervisorBlock(
-        normalizedDay,
-        normalizedReason
-      );
-    } catch (error) {
-      console.error("[NF_cpe] supervisor block persist failed", error);
-      cpeEnqueueBlockChange({
-        type: "UPSERT",
-        blockDay: normalizedDay,
-        reason: normalizedReason
+    void window.NF_sync
+      .upsertSupervisorBlock(normalizedDay, normalizedReason)
+      .catch(error => {
+        console.error("[NF_cpe] supervisor block persist failed", error);
+        cpeEnqueueBlockChange({
+          type: "UPSERT",
+          blockDay: normalizedDay,
+          reason: normalizedReason
+        });
       });
-    }
-
   } else if (window.NF_sync?.upsertSupervisorBlock) {
     cpeEnqueueBlockChange({
       type: "UPSERT",
@@ -453,17 +444,15 @@ async function removeBlockedDay(day) {
   cpeEmitBlockChanged(normalizedDay, "local-unblock");
 
   if (window.NF_sync?.isOnline?.() && window.NF_sync?.deleteSupervisorBlock) {
-
-    try {
-      await window.NF_sync.deleteSupervisorBlock(normalizedDay);
-    } catch (error) {
-      console.error("[NF_cpe] supervisor unblock persist failed", error);
-      cpeEnqueueBlockChange({
-        type: "DELETE",
-        blockDay: normalizedDay
+    void window.NF_sync
+      .deleteSupervisorBlock(normalizedDay)
+      .catch(error => {
+        console.error("[NF_cpe] supervisor unblock persist failed", error);
+        cpeEnqueueBlockChange({
+          type: "DELETE",
+          blockDay: normalizedDay
+        });
       });
-    }
-
   } else if (window.NF_sync?.deleteSupervisorBlock) {
     cpeEnqueueBlockChange({
       type: "DELETE",
