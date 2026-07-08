@@ -364,7 +364,10 @@ async function supervisorCalBlockSelectedDay() {
   const result = await cpe.setBlockedDay(
     day,
     reasonInput?.value || "Privat"
-  );
+  ).catch(error => {
+    console.error("[NF_supervisorCal] block failed", error);
+    return { ok: false, message: "Sperre fehlgeschlagen." };
+  });
 
   if (!result?.ok) {
     supervisorCalShowDetailError(result?.message || "Sperre fehlgeschlagen.");
@@ -383,7 +386,10 @@ async function supervisorCalUnblockSelectedDay() {
     return;
   }
 
-  const result = await cpe.removeBlockedDay(day);
+  const result = await cpe.removeBlockedDay(day).catch(error => {
+    console.error("[NF_supervisorCal] unblock failed", error);
+    return { ok: false, message: "Freigabe fehlgeschlagen." };
+  });
 
   if (!result?.ok) {
     supervisorCalShowDetailError(

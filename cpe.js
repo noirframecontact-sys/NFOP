@@ -285,6 +285,39 @@ function cpeExtractCalendarDay(dateValue) {
 }
 
 const NF_BLOCKED_DAYS_KEY = "nfBlockedDays";
+const NF_BLOCK_SYNC_QUEUE_KEY = "nfBlockSyncQueue";
+
+function cpeEmitBlockChanged(day, source) {
+  const payload = { day, source: source || "local" };
+
+  window.NF_events?.emit?.(
+    window.NF_events?.TYPES?.CALENDAR_BLOCK_CHANGED,
+    payload
+  );
+
+  window.NF_events?.emit?.(
+    window.NF_events?.TYPES?.CALENDAR_CHANGED,
+    payload
+  );
+}
+
+function cpeEnqueueBlockChange(entry) {
+  try {
+    const raw = localStorage.getItem(NF_BLOCK_SYNC_QUEUE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    const queue = Array.isArray(parsed) ? parsed : [];
+    const filtered = queue.filter(item => item.blockDay !== entry.blockDay);
+
+    filtered.push({
+      type: entry.type,
+      blockDay: entry.blockDay,
+      reason: entry.reason || "Privat",
+      queuedAt: new Date().toISOString()
+    });
+
+    localStorage.setItem(NF_BLOCK_SYNC_QUEUE_KEY, JSON.stringify(filtered));
+  } catch (error) {}
+}
 
 function normalizeBlockedDayEntries(raw) {
   if (!Array.isArray(raw)) {
@@ -332,8 +365,16 @@ function getBlockedDays() {
 }
 
 function getBlockedDayEntry(day) {
+  const normalizedDay = cpeExtractCalendarDay(day);
+
+  if (!normalizedDay) {
+    return null;
+  }
+
   return (
-    getBlockedDayEntries().find(entry => entry.day === day) || null
+    getBlockedDayEntries().find(
+      entry => cpeExtractCalendarDay(entry.day) === normalizedDay
+    ) || null
   );
 }
 
@@ -353,21 +394,45 @@ async function setBlockedDay(day, reason) {
     return { ok: false, message: "Ungültiges Datum." };
   }
 
-  if (window.NF_calendarStore?.blockDay) {
-    return window.NF_calendarStore.blockDay(normalizedDay, reason);
-  }
+  const normalizedReason =
+    String(reason || "Privat").trim() || "Privat";
 
   const entries = getBlockedDayEntries().filter(
-    entry => entry.day !== normalizedDay
+    entry => cpeExtractCalendarDay(entry.day) !== normalizedDay
   );
 
   entries.push({
     day: normalizedDay,
-    reason: String(reason || "Privat").trim() || "Privat",
+    reason: normalizedReason,
     createdAt: new Date().toISOString()
   });
 
   saveBlockedDayEntries(entries);
+  cpeEmitBlockChanged(normalizedDay, "local");
+
+  if (window.NF_sync?.isOnline?.() && window.NF_sync?.upsertSupervisorBlock) {
+
+    try {
+      await window.NF_sync.upsertSupervisorBlock(
+        normalizedDay,
+        normalizedReason
+      );
+    } catch (error) {
+      console.error("[NF_cpe] supervisor block persist failed", error);
+      cpeEnqueueBlockChange({
+        type: "UPSERT",
+        blockDay: normalizedDay,
+        reason: normalizedReason
+      });
+    }
+
+  } else if (window.NF_sync?.upsertSupervisorBlock) {
+    cpeEnqueueBlockChange({
+      type: "UPSERT",
+      blockDay: normalizedDay,
+      reason: normalizedReason
+    });
+  }
 
   return { ok: true, day: normalizedDay };
 }
@@ -379,13 +444,32 @@ async function removeBlockedDay(day) {
     return { ok: false, message: "Ungültiges Datum." };
   }
 
-  if (window.NF_calendarStore?.unblockDay) {
-    return window.NF_calendarStore.unblockDay(normalizedDay);
-  }
-
   saveBlockedDayEntries(
-    getBlockedDayEntries().filter(entry => entry.day !== normalizedDay)
+    getBlockedDayEntries().filter(
+      entry => cpeExtractCalendarDay(entry.day) !== normalizedDay
+    )
   );
+
+  cpeEmitBlockChanged(normalizedDay, "local-unblock");
+
+  if (window.NF_sync?.isOnline?.() && window.NF_sync?.deleteSupervisorBlock) {
+
+    try {
+      await window.NF_sync.deleteSupervisorBlock(normalizedDay);
+    } catch (error) {
+      console.error("[NF_cpe] supervisor unblock persist failed", error);
+      cpeEnqueueBlockChange({
+        type: "DELETE",
+        blockDay: normalizedDay
+      });
+    }
+
+  } else if (window.NF_sync?.deleteSupervisorBlock) {
+    cpeEnqueueBlockChange({
+      type: "DELETE",
+      blockDay: normalizedDay
+    });
+  }
 
   return { ok: true, day: normalizedDay };
 }
